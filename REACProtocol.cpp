@@ -151,7 +151,7 @@ errno_t REACProtocol::filterInputFunc(void *cookie,
     mbuf_copydata(*data, 0, len, buf);
     
     if (REAC_ENDING != (*((UInt16*)(((char*)buf)+sizeof(REACPacketHeader)+samplesSize)))) {
-        // Not the correct ending. Not a REAC packet?
+        // Incorrect ending. Not a REAC packet?
         goto Done;
     }
     

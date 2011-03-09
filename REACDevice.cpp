@@ -13,6 +13,7 @@
 */
 
 #include "REACDevice.h"
+
 #include <IOKit/audio/IOAudioControl.h>
 #include <IOKit/audio/IOAudioLevelControl.h>
 #include <IOKit/audio/IOAudioToggleControl.h>
@@ -91,7 +92,7 @@ bool REACDevice::createAudioEngines()
 		return true;
 	}
     
-    while (audioEngineDict = (OSDictionary*)audioEngineIterator->getNextObject()) {
+    while ((audioEngineDict = (OSDictionary*)audioEngineIterator->getNextObject())) {
 		REACAudioEngine*	audioEngine = NULL;
 		
         if (OSDynamicCast(OSDictionary, audioEngineDict) == NULL)
