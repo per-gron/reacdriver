@@ -9,6 +9,8 @@
 
 #include "REACAudioEngine.h"
 
+#include <IOKit/IOLib.h>
+
 // The function clipOutputSamples() is called to clip and convert samples from the float mix buffer into the actual
 // hardware sample buffer.  The samples to be clipped, are guaranteed not to wrap from the end of the buffer to the
 // beginning.
@@ -85,8 +87,11 @@ IOReturn REACAudioEngine::clipOutputSamples(const void *mixBuf, void *sampleBuf,
 //		numSampleFrames - the total number of sample frames to convert and scale
 //		streamFormat - the current format of the IOAudioStream this function is operating on
 //		audioStream - the audio stream this function is operating on
-IOReturn REACAudioEngine::convertInputSamples(const void *sampleBuf, void *destBuf, UInt32 firstSampleFrame, UInt32 numSampleFrames, const IOAudioStreamFormat *streamFormat, IOAudioStream *audioStream)
-{
+IOReturn REACAudioEngine::convertInputSamples(const void *sampleBuf, void *destBuf, UInt32 firstSampleFrame,
+                                              UInt32 numSampleFrames, const IOAudioStreamFormat *streamFormat,
+                                              IOAudioStream *audioStream) {
+    // IOLog("REACAudioEngine::convertInputSamples()\n");
+    
     UInt32 numSamplesLeft;
     float *floatDestBuf;
     SInt16 *inputBuf;
@@ -210,3 +215,27 @@ IOReturn REACAudioEngine::convertInputSamples(const void *sampleBuf, void *destB
     return kIOReturnSuccess;
 }
 #endif
+
+
+
+#if 0
+
+void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet) {
+    for (int i=0; i<record_channels; i++) {  
+        for (int j=0; j<REAC_SAMPLES_PER_PACKET; j++) {
+            if (0 == i%2) {
+                buf[i][buffer_place+j*REAC_RESOLUTION  ] = reac->samples[j][i/2][3];
+                buf[i][buffer_place+j*REAC_RESOLUTION+1] = reac->samples[j][i/2][0];
+                buf[i][buffer_place+j*REAC_RESOLUTION+2] = reac->samples[j][i/2][1];
+            }
+            else {
+                buf[i][buffer_place+j*REAC_RESOLUTION  ] = reac->samples[j][i/2][4];
+                buf[i][buffer_place+j*REAC_RESOLUTION+1] = reac->samples[j][i/2][5];
+                buf[i][buffer_place+j*REAC_RESOLUTION+2] = reac->samples[j][i/2][2];
+            }
+        }
+    }
+}
+
+
+#endif // #if 0

@@ -150,6 +150,10 @@ ifnet_t REACProtocol::getInterface() const {
     return interface;
 }
 
+REACProtocol::REACMode REACProtocol::getMode() const {
+    return mode;
+}
+
 
 errno_t REACProtocol::filterInputFunc(void *cookie,
                                       ifnet_t interface, 
@@ -259,30 +263,3 @@ bool REACProtocol::checkChecksum(const REACPacketHeader* packet) const {
     
     return expected_checksum == packet->data[15] >> 8;
 }
-
-
-
-
-
-
-#if 0
-
-void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet) {
-    for (int i=0; i<record_channels; i++) {  
-        for (int j=0; j<REAC_SAMPLES_PER_PACKET; j++) {
-            if (0 == i%2) {
-                buf[i][buffer_place+j*REAC_RESOLUTION  ] = reac->samples[j][i/2][3];
-                buf[i][buffer_place+j*REAC_RESOLUTION+1] = reac->samples[j][i/2][0];
-                buf[i][buffer_place+j*REAC_RESOLUTION+2] = reac->samples[j][i/2][1];
-            }
-            else {
-                buf[i][buffer_place+j*REAC_RESOLUTION  ] = reac->samples[j][i/2][4];
-                buf[i][buffer_place+j*REAC_RESOLUTION+1] = reac->samples[j][i/2][5];
-                buf[i][buffer_place+j*REAC_RESOLUTION+2] = reac->samples[j][i/2][2];
-            }
-        }
-    }
-}
-
-
-#endif // #if 0

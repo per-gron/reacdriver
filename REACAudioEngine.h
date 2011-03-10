@@ -26,7 +26,7 @@ class REACAudioEngine : public IOAudioEngine
 
     UInt32              mLastValidSampleFrame;
     
-    IOTimerEventSource *timerEventSource;
+    // FIXME for REAC_MASTER: IOTimerEventSource *timerEventSource;
     
     UInt32              blockSize;                // In sample frames -- fixed, as defined in the Info.plist (e.g. 8192)
     UInt32              numBlocks;

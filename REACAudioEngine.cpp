@@ -99,13 +99,13 @@ bool REACAudioEngine::initHardware(IOService *provider)
         goto Done;
     }
     
-    timerEventSource = IOTimerEventSource::timerEventSource(this, ourTimerFired);
+    // FIXME for REAC_MASTER: timerEventSource = IOTimerEventSource::timerEventSource(this, ourTimerFired);
     
-    if (!timerEventSource) {
-        goto Done;
-    }
+    // FIXME for REAC_MASTER: if (!timerEventSource) {
+    // FIXME for REAC_MASTER:     goto Done;
+    // FIXME for REAC_MASTER: }
     
-    workLoop->addEventSource(timerEventSource);
+    // FIXME for REAC_MASTER: workLoop->addEventSource(timerEventSource);
         
     result = true;
     
@@ -310,13 +310,13 @@ IOReturn REACAudioEngine::performAudioEngineStart()
     takeTimeStamp(false);
     currentBlock = 0;
     
-    timerEventSource->setTimeout(blockTimeoutNS);
+    // FIXME for REAC_MASTER: timerEventSource->setTimeout(blockTimeoutNS);
     
-    uint64_t time;
-    clock_get_uptime(&time);
-    absolutetime_to_nanoseconds(time, &nextTime);
+    // FIXME for REAC_MASTER: uint64_t time;
+    // FIXME for REAC_MASTER: clock_get_uptime(&time);
+    // FIXME for REAC_MASTER: absolutetime_to_nanoseconds(time, &nextTime);
 
-    nextTime += blockTimeoutNS;
+    // FIXME for REAC_MASTER: nextTime += blockTimeoutNS;
     
     return kIOReturnSuccess;
 }
@@ -325,7 +325,7 @@ IOReturn REACAudioEngine::performAudioEngineStop()
 {
     //IOLog("REACAudioEngine[%p]::performAudioEngineStop()\n", this);
          
-    timerEventSource->cancelTimeout();
+    // FIXME for REAC_MASTER: timerEventSource->cancelTimeout();
     
     return kIOReturnSuccess;
 }
@@ -406,5 +406,23 @@ void REACAudioEngine::ourTimerFired(OSObject *target, IOTimerEventSource *sender
 }
 
 void REACAudioEngine::gotSamples(int numSamples, UInt8 *samples) {
+    int bytesPerSample = inputStream->format.fBitWidth/8*inputStream->format.fNumChannels;
+    memcpy(&((UInt8*)mInBuffer)[currentBlock*blockSize*bytesPerSample], samples, bytesPerSample*numSamples);
     
+    switch (protocol->getMode()) {
+        case REACProtocol::REAC_SPLIT:
+            break;
+            
+        case REACProtocol::REAC_MASTER:
+        case REACProtocol::REAC_SLAVE:
+        default:
+            IOLog("REACAudioEngine::gotSamples(): Unsupported REAC mode\n");
+            break;
+    }
+    
+    currentBlock++;
+    if (currentBlock >= numBlocks) {
+        currentBlock = 0;
+        takeTimeStamp();
+    }
 }
