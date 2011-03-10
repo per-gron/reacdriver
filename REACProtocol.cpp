@@ -13,43 +13,88 @@
 #include <sys/errno.h>
 
 
-REACProtocol* REACProtocol::listen(ifnet_t interface, REACMode mode,
-                                   reac_samples_callback_t samplesCallback,
-                                   void* samplesCookie,
-                                   reac_connection_callback_t connectionCallback,
-                                   void* connectionCookie) {
+#define super OSObject
+
+OSDefineMetaClassAndStructors(REACProtocol, OSObject)
+
+
+bool REACProtocol::initWithInterface(ifnet_t interface_, REACMode mode_,
+                                     reac_connection_callback_t connectionCallback_,
+                                     void* connectionCookie_,
+                                     reac_samples_callback_t samplesCallback_,
+                                     void* samplesCookie_) {
     OSMallocTag mt = OSMalloc_Tagalloc("REAC packet memory", OSMT_DEFAULT);
-    REACProtocol *proto = (REACProtocol*) OSMalloc(sizeof(REACProtocol), mt);
-    if (NULL == proto) {
-        goto Fail;
-    }
     
     // Hack: Pretend to be connected immediately
-    proto->deviceInfo = (REACDeviceInfo*) OSMalloc(sizeof(REACDeviceInfo), mt);
-    if (NULL == proto->deviceInfo) {
+    deviceInfo = (REACDeviceInfo*) OSMalloc(sizeof(REACDeviceInfo), mt);
+    if (NULL == deviceInfo) {
         goto Fail;
     }
-    proto->deviceInfo->addr[0] = 0x00;
-    proto->deviceInfo->addr[1] = 0x40;
-    proto->deviceInfo->addr[2] = 0xab;
-    proto->deviceInfo->addr[3] = 0xc4;
-    proto->deviceInfo->addr[4] = 0x80;
-    proto->deviceInfo->addr[5] = 0xf6;
-    proto->deviceInfo->in_channels = 16;
-    proto->deviceInfo->out_channels = 8;
-    proto->connected = true;
+    deviceInfo->addr[0] = 0x00;
+    deviceInfo->addr[1] = 0x40;
+    deviceInfo->addr[2] = 0xab;
+    deviceInfo->addr[3] = 0xc4;
+    deviceInfo->addr[4] = 0x80;
+    deviceInfo->addr[5] = 0xf6;
+    deviceInfo->in_channels = 16;
+    deviceInfo->out_channels = 8;
+    listening = false;
+    connected = true;
     
-    proto->reacMallocTag = mt;
-    proto->lastCounter = 0;
-    proto->samplesCallback = samplesCallback;
-    proto->samplesCookie = samplesCookie;
-    proto->connectionCallback = connectionCallback;
-    proto->connectionCookie = connectionCookie;
-    proto->mode = mode;
+    reacMallocTag = mt;
+    lastCounter = 0;
+    samplesCallback = samplesCallback_;
+    samplesCookie = samplesCookie_;
+    connectionCallback = connectionCallback_;
+    connectionCookie = connectionCookie_;
+    mode = mode_;
     
+    ifnet_reference(interface_);
+    interface = interface_;
+    
+    return true;
+    
+Fail:
+    if (NULL != deviceInfo) {
+        OSFree(deviceInfo, sizeof(REACDeviceInfo), mt);
+    }
+    OSMalloc_Tagfree(mt);
+    return false;
+}
+
+REACProtocol* REACProtocol::withInterface(ifnet_t interface, REACMode mode,
+                                 reac_connection_callback_t connectionCallback,
+                                 void* connectionCookie,
+                                 reac_samples_callback_t samplesCallback,
+                                 void* samplesCookie) {
+    REACProtocol* p = new REACProtocol;
+    if (NULL == p) return NULL;
+    bool result = p->initWithInterface(interface, mode, connectionCallback, connectionCookie, samplesCallback, samplesCookie);
+    if (!result) {
+        p->release();
+        return NULL;
+    }
+    return p;
+}
+
+void REACProtocol::free() {
+    detach();
+    
+    if (NULL != deviceInfo) {
+        OSFree(deviceInfo, sizeof(REACDeviceInfo), reacMallocTag);
+    }
+    
+    ifnet_release(interface);
+    OSMalloc_Tagfree(reacMallocTag);
+    
+    super::free();
+}
+
+
+bool REACProtocol::listen() {
     iff_filter filter;
     
-    filter.iff_cookie = proto;
+    filter.iff_cookie = this;
     filter.iff_name = "REAC driver input filter";
     filter.iff_protocol = 0;
     filter.iff_input = &REACProtocol::filterInputFunc;
@@ -58,55 +103,38 @@ REACProtocol* REACProtocol::listen(ifnet_t interface, REACMode mode,
     filter.iff_ioctl = NULL;
     filter.iff_detached = &REACProtocol::filterDetachedFunc;
     
-    if (0 != iflt_attach(interface, &filter, &proto->filterRef)) {
-        goto Fail;
+    if (0 != iflt_attach(interface, &filter, &filterRef)) {
+        return false;
     }
     
-    IOLog("REACProtocol[%p]::listen(): Listening\n", proto);
+    listening = true;
     
     // Hack: Announce connect
-    if (NULL != proto->connectionCallback) {
-        proto->connectionCallback(proto, connectionCookie, proto->deviceInfo);
+    connected = true;
+    if (NULL != connectionCallback) {
+        connectionCallback(this, connectionCookie, deviceInfo);
     }
     
-    return proto;
-    
-Fail:
-    if (NULL != proto) {
-        if (NULL != proto->deviceInfo) {
-            OSFree(proto->deviceInfo, sizeof(REACDeviceInfo), mt);
-        }
-        OSFree(proto, sizeof(REACProtocol), mt);
-    }
-    OSMalloc_Tagfree(mt);
-    return NULL;
+    return true;
 }
 
 void REACProtocol::detach() {
-    if (isConnected()) {
-        // Announce disconnect
-        if (NULL != connectionCallback) {
-            connectionCallback(this, connectionCookie, NULL);
+    if (listening) {
+        if (isConnected()) {
+            // Announce disconnect
+            if (NULL != connectionCallback) {
+                connectionCallback(this, connectionCookie, NULL);
+            }
         }
+        
+        iflt_detach(filterRef);
+        listening = false;
     }
-    
-    OSMallocTag mt = reacMallocTag;
-    
-    iflt_detach(filterRef);
-    
-    if (NULL != deviceInfo) {
-        OSFree(deviceInfo, sizeof(REACDeviceInfo), mt);
-    }
-    
-    OSFree(this, sizeof(REACProtocol), mt);
-    OSMalloc_Tagfree(mt);
-    
-    IOLog("REACProtocol[%p]::listen(): Detached\n", this);
 }
 
 
-errno_t REACProtocol::pushSamples(UInt8 *samples[REAC_SAMPLES_PER_PACKET]) {
-    if (!(REAC_MASTER == mode || REAC_SLAVE == mode))
+errno_t REACProtocol::pushSamples(int numSamples, UInt8 *samples) {
+    if (!(REAC_MASTER == mode || REAC_SLAVE == mode) || REAC_SAMPLES_PER_PACKET != numSamples)
         return EINVAL;
     
     return ENOSYS;
@@ -166,7 +194,7 @@ errno_t REACProtocol::filterInputFunc(void *cookie,
     
     if (proto->connected) {
         if (NULL != proto->samplesCallback) {
-            proto->samplesCallback(proto, proto->samplesCookie, (UInt8**) buf+sizeof(REACPacketHeader));
+            proto->samplesCallback(proto, proto->samplesCookie, REAC_SAMPLES_PER_PACKET, (UInt8*) buf+sizeof(REACPacketHeader));
         }
     }
     proto->processDataStream(packetHeader);

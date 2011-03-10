@@ -69,14 +69,15 @@ class REACProtocol;
 // Is only called when the connection callback has indicated that there is a connection
 //   When in REAC_SLAVE mode, this function is expected to overwrite the samples parameter
 // with the output data [Note to self: if I do this, make sure that the buffer is big enough]
-typedef void(*reac_samples_callback_t)(REACProtocol* proto, void* cookie, UInt8* samples[REAC_SAMPLES_PER_PACKET]);
+typedef void(*reac_samples_callback_t)(REACProtocol* proto, void* cookie, int numSamples, UInt8* samples);
 // Device is NULL on disconnect
 typedef void(*reac_connection_callback_t)(REACProtocol* proto, void* cookie, REACDeviceInfo* device);
 
 
 // TODO Thread safety?
 // TODO Private constructor/assignment operator/destructor?
-class REACProtocol {
+class REACProtocol : public OSObject {
+    OSDeclareDefaultStructors(REACProtocol)
 public:
     enum REACMode {
         REAC_MASTER, REAC_SLAVE, REAC_SPLIT
@@ -89,27 +90,42 @@ public:
         REAC_STREAM_FROM_SPLIT = 0xeace
     };
     
-    static REACProtocol* listen(ifnet_t interface, REACMode mode,
-                                reac_samples_callback_t samplesCallback,
-                                void* samplesCookie,
-                                reac_connection_callback_t connectionCallback,
-                                void* connectionCookie);
+protected:
+    virtual bool initWithInterface(ifnet_t interface, REACMode mode,
+                                   reac_connection_callback_t connectionCallback,
+                                   void* connectionCookie,
+                                   reac_samples_callback_t samplesCallback,
+                                   void* samplesCookie);
+public:
+    static REACProtocol* withInterface(ifnet_t interface, REACMode mode,
+                                       reac_connection_callback_t connectionCallback,
+                                       void* connectionCookie,
+                                       reac_samples_callback_t samplesCallback,
+                                       void* samplesCookie);
+protected:
+    virtual void free();
+public:
+    
+    bool listen();
     void detach();
     
     // When in REAC_MASTER mode, this function is expected to be called
     // REAC_PACKETS_PER_SECOND times per second (on average).
-    //   Returns 0 on success, EINVAL when mode is not REAC_MASTER
-    errno_t pushSamples(UInt8 *samples[REAC_SAMPLES_PER_PACKET]);
+    //   Returns 0 on success, EINVAL when mode is not REAC_MASTER or when
+    // numSamples isn't == REAC_SAMPLES_PER_PACKET
+    errno_t pushSamples(int numSamples, UInt8* samples);
     
     const REACDeviceInfo* getDeviceInfo() const;
     bool isConnected() const;
 
 protected:
-    REACMode mode;
+    ifnet_t             interface;
+    REACMode            mode;
     interface_filter_t  filterRef;
     OSMallocTag         reacMallocTag;
     UInt16              lastCounter;
     
+    bool                listening;
     bool                connected;
     REACDeviceInfo     *deviceInfo;
     

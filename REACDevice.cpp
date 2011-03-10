@@ -31,7 +31,6 @@ const SInt32 REACDevice::kVolumeMax = 65535;
 const SInt32 REACDevice::kGainMax = 65535;
 
 
-
 bool REACDevice::initHardware(IOService *provider)
 {
     bool result = false;
@@ -41,31 +40,91 @@ bool REACDevice::initHardware(IOService *provider)
     if (!super::initHardware(provider))
         goto Done;
     
-    setDeviceName("REAC by Per");
-    setDeviceShortName("REAC by Per");
+    setDeviceName("REAC by Per Eckerdal");
+    setDeviceShortName("REAC by Per Eckerdal");
     setManufacturerName("Per Eckerdal");
     
-    //if (!createAudioEngines())
-    //    goto Done;
-    
-    ifnet_t interface;
-    if (0 != ifnet_find_by_name("en0", &interface)) {
+    if (!createProtocolListeners())
         goto Done;
-    }
-    proto = REACProtocol::listen(interface,
-                                 REACProtocol::REAC_SPLIT,
-                                 NULL, // Samples callback
-                                 NULL, // Samples cookie
-                                 NULL, // Connection callback
-                                 NULL); // Connection cookie
-    ifnet_release(interface);
-    
     
     result = true;
     
 Done:
 
     return result;
+}
+
+bool REACDevice::createProtocolListeners() {
+    OSArray*				interfaceArray = OSDynamicCast(OSArray, getProperty(INTERFACES_KEY));
+    OSCollectionIterator*	interfaceIterator;
+    OSDictionary*			interfaceDict;
+	
+    if (!interfaceArray) {
+        IOLog("REACDevice[%p]::createProtocolListeners() - Error: no Interface array in personality.\n", this);
+        return false;
+    }
+    
+	interfaceIterator = OSCollectionIterator::withCollection(interfaceArray);
+    if (!interfaceIterator) {
+		IOLog("REACDevice: no interfaces to listen to available.\n");
+		return true;
+	}
+    
+    while ((interfaceDict = (OSDictionary*)interfaceIterator->getNextObject())) {
+        OSString       *ifname = OSDynamicCast(OSString, interfaceDict->getObject(INTERFACE_NAME_KEY));
+		REACProtocol   *protocol = NULL;
+        ifnet_t interface;
+        
+        if (NULL == ifname) {
+            IOLog("REACDevice: Invalid interface entry in personality (no string name).\n");
+            continue;
+        }
+        
+        if (0 != ifnet_find_by_name(ifname->getCStringNoCopy(), &interface)) {
+            IOLog("REACDevice[%p]::createProtocolListeners() - Error: failed to find interface '%s'.\n",
+                  this, ifname->getCStringNoCopy());
+            continue;
+        }
+        
+        protocol = REACProtocol::withInterface(interface,
+                                               REACProtocol::REAC_SPLIT,
+                                               &REACDevice::connectionCallback,
+                                               this, // Connection cookie
+                                               &REACDevice::samplesCallback,
+                                               this); // Samples cookie
+        ifnet_release(interface);
+        
+        if (NULL == protocol) {
+            IOLog("REACDevice[%p]::createProtocolListeners() - Error: failed to initialize REAC listener for '%s'.\n",
+                  this, ifname->getCStringNoCopy());
+            continue;
+        }
+        
+        if (!protocol->listen()) {
+            IOLog("REACDevice[%p]::createProtocolListeners() - Error: failed to listen to '%s'.\n",
+                  this, ifname->getCStringNoCopy());
+            continue;
+        }
+        
+        protocol->detach();
+        protocol->release();
+    }
+	
+    interfaceIterator->release();
+    return true;
+}
+
+void REACDevice::samplesCallback(REACProtocol* proto, void* cookie, int numSamples, UInt8* samples) {
+    IOLog("REACDevice[%p]::samplesCallback()\n", cookie);
+}
+
+void REACDevice::connectionCallback(REACProtocol* proto, void* cookie, REACDeviceInfo* device) {
+    if (NULL == device) {
+        IOLog("REACDevice[%p]::connectionCallback() - Disconnected.\n", cookie);
+    }
+    else {
+        IOLog("REACDevice[%p]::connectionCallback() - Connected.\n", cookie);
+    }
 }
 
 void REACDevice::stop(IOService *provider)
@@ -112,6 +171,12 @@ bool REACDevice::createAudioEngines()
 	
     audioEngineIterator->release();
     return true;
+}
+
+IOReturn REACDevice::performPowerStateChange(IOAudioDevicePowerState oldPowerState, 
+                                             IOAudioDevicePowerState newPowerState, 
+                                             UInt32 *microsecondsUntilComplete) {
+    return kIOReturnSuccess;
 }
 
 

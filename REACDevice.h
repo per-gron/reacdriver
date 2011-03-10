@@ -9,15 +9,18 @@
 
 #include "REACProtocol.h"
 
-#define AUDIO_ENGINES_KEY				"AudioEngines"
-#define DESCRIPTION_KEY					"Description"
-#define BLOCK_SIZE_KEY					"BlockSize"
-#define NUM_BLOCKS_KEY					"NumBlocks"
-#define NUM_STREAMS_KEY					"NumStreams"
-#define FORMATS_KEY						"Formats"
+#define AUDIO_ENGINE_PARAMS_KEY         "AudioEnginesParams"
+#define INTERFACES_KEY                  "Interfaces"
+#define INTERFACE_NAME_KEY              "Name"
+#define AUDIO_ENGINES_KEY               "AudioEngines"
+#define DESCRIPTION_KEY                 "Description"
+#define BLOCK_SIZE_KEY                  "BlockSize"
+#define NUM_BLOCKS_KEY                  "NumBlocks"
+#define NUM_STREAMS_KEY                 "NumStreams"
+#define FORMATS_KEY                     "Formats"
 #define SAMPLE_RATES_KEY				"SampleRates"
-#define SEPARATE_STREAM_BUFFERS_KEY		"SeparateStreamBuffers"
-#define SEPARATE_INPUT_BUFFERS_KEY		"SeparateInputBuffers"
+#define SEPARATE_STREAM_BUFFERS_KEY     "SeparateStreamBuffers"
+#define SEPARATE_INPUT_BUFFERS_KEY      "SeparateInputBuffers"
 
 #define REACDevice				com_pereckerdal_driver_REACDevice
 #define REACAudioEngine			com_pereckerdal_driver_REACAudioEngine
@@ -48,8 +51,15 @@ class REACDevice : public IOAudioDevice
 	// methods
 	
     virtual bool initHardware(IOService *provider);
+    virtual bool createProtocolListeners();
+    static void samplesCallback(REACProtocol* proto, void* cookie, int numSamples, UInt8* samples);
+    static void connectionCallback(REACProtocol* proto, void* cookie, REACDeviceInfo* device);
     virtual void stop(IOService *provider);
     virtual bool createAudioEngines();
+    virtual IOReturn performPowerStateChange(IOAudioDevicePowerState oldPowerState, 
+                                             IOAudioDevicePowerState newPowerState,
+                                             UInt32 *microsecondsUntilComplete);
+    
     virtual bool initControls(REACAudioEngine *audioEngine);
     
     static  IOReturn volumeChangeHandler(IOService *target, IOAudioControl *volumeControl, SInt32 oldValue, SInt32 newValue);
