@@ -23,17 +23,17 @@
 OSDefineMetaClassAndStructors(REACAudioEngine, IOAudioEngine)
 
 
-bool REACAudioEngine::init(OSDictionary *properties)
+bool REACAudioEngine::init(REACProtocol* proto, OSDictionary *properties)
 {
     bool result = false;
     OSNumber *number = NULL;
     
     //IOLog("REACAudioEngine[%p]::init()\n", this);
     
-    protocol = OSDynamicCast(REACProtocol, getProperty(REAC_PROTOCOL_KEY));
-    if (NULL == protocol) {
+    if (NULL == proto) {
         goto Done;
     }
+    protocol = proto;
 
     if (!super::init(properties)) {
         goto Done;

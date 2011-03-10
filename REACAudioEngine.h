@@ -40,7 +40,7 @@ class REACAudioEngine : public IOAudioEngine
     
 public:
 
-    virtual bool init(OSDictionary *properties);
+    virtual bool init(REACProtocol* proto, OSDictionary *properties);
     virtual void free();
     
     virtual bool initHardware(IOService *provider);

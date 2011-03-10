@@ -204,14 +204,13 @@ REACAudioEngine* REACDevice::createAudioEngine(REACProtocol* proto)
             newName->release();
         }
     }
-    audioEngineParams->setObject(REAC_PROTOCOL_KEY, proto);
-    
+
     REACAudioEngine* audioEngine = new REACAudioEngine;
     if (!audioEngine) {
         goto Done;
     }
     
-    if (!audioEngine->init(audioEngineParams)) {
+    if (!audioEngine->init(proto, audioEngineParams)) {
         audioEngine->release();
         audioEngine = NULL;
         goto Done;
