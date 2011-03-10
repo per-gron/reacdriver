@@ -13,6 +13,7 @@
 #define INTERFACES_KEY                  "Interfaces"
 #define INTERFACE_NAME_KEY              "Name"
 #define DESCRIPTION_KEY                 "Description"
+#define REAC_PROTOCOL_KEY               "REACProtocol"
 #define BLOCK_SIZE_KEY                  "BlockSize"
 #define NUM_BLOCKS_KEY                  "NumBlocks"
 #define NUM_STREAMS_KEY                 "NumStreams"

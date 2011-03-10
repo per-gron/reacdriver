@@ -39,7 +39,7 @@ bool REACProtocol::initWithInterface(ifnet_t interface_, REACMode mode_,
     deviceInfo->in_channels = 16;
     deviceInfo->out_channels = 8;
     listening = false;
-    connected = true;
+    connected = false;
     
     reacMallocTag = mt;
     lastCounter = 0;
@@ -108,12 +108,6 @@ bool REACProtocol::listen() {
     }
     
     listening = true;
-    
-    // Hack: Announce connect
-    connected = true;
-    if (NULL != connectionCallback) {
-        connectionCallback(this, &cookieA, &cookieB, deviceInfo);
-    }
     
     return true;
 }
@@ -196,6 +190,14 @@ errno_t REACProtocol::filterInputFunc(void *cookie,
         if (!(65535 == proto->lastCounter && 0 == packetHeader->counter)) {
             IOLog("REACProtocol[%p]::filterInputFunc(): Lost packet [%d %d]\n",
                   cookie, proto->lastCounter, packetHeader->counter);
+        }
+    }
+    
+    // Hack: Announce connect
+    if (!proto->connected) {
+        proto->connected = true;
+        if (NULL != proto->connectionCallback) {
+            proto->connectionCallback(proto, &proto->cookieA, &proto->cookieB, proto->deviceInfo);
         }
     }
     

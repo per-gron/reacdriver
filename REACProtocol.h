@@ -69,9 +69,9 @@ class REACProtocol;
 // Is only called when the connection callback has indicated that there is a connection
 //   When in REAC_SLAVE mode, this function is expected to overwrite the samples parameter
 // with the output data [Note to self: if I do this, make sure that the buffer is big enough]
-typedef void(*reac_samples_callback_t)(REACProtocol* proto, void **cookieA, void** cookieB, int numSamples, UInt8* samples);
+typedef void(*reac_samples_callback_t)(REACProtocol *proto, void **cookieA, void **cookieB, int numSamples, UInt8 *samples);
 // Device is NULL on disconnect
-typedef void(*reac_connection_callback_t)(REACProtocol* proto, void **cookieA, void** cookieB, REACDeviceInfo* device);
+typedef void(*reac_connection_callback_t)(REACProtocol *proto, void **cookieA, void **cookieB, REACDeviceInfo *device);
 
 
 // TODO Thread safety?

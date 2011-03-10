@@ -29,6 +29,11 @@ bool REACAudioEngine::init(OSDictionary *properties)
     OSNumber *number = NULL;
     
     //IOLog("REACAudioEngine[%p]::init()\n", this);
+    
+    protocol = OSDynamicCast(REACProtocol, getProperty(REAC_PROTOCOL_KEY));
+    if (NULL == protocol) {
+        goto Done;
+    }
 
     if (!super::init(properties)) {
         goto Done;
@@ -429,4 +434,8 @@ void REACAudioEngine::ourTimerFired(OSObject *target, IOTimerEventSource *sender
             audioEngine->nextTime += audioEngine->blockTimeoutNS;
         }
     }
+}
+
+void REACAudioEngine::gotSamples(int numSamples, UInt8 *samples) {
+    
 }

@@ -144,13 +144,18 @@ bool REACDevice::createProtocolListeners() {
 }
 
 void REACDevice::samplesCallback(REACProtocol *proto, void **cookieA, void** cookieB, int numSamples, UInt8 *samples) {
-    IOLog("REACDevice[%p]::samplesCallback()\n", *cookieA);
+    // IOLog("REACDevice[%p]::samplesCallback()\n", *cookieA);
+    
+    REACAudioEngine *engine = (REACAudioEngine*) *cookieB;
+    if (NULL != engine) {
+        engine->gotSamples(numSamples, samples);
+    }
 }
 
 void REACDevice::connectionCallback(REACProtocol *proto, void **cookieA, void** cookieB, REACDeviceInfo *deviceInfo) {
-    REACDevice* device = (REACDevice*) *cookieA;
+    REACDevice *device = (REACDevice*) *cookieA;
     
-    REACAudioEngine* engine = (REACAudioEngine*) *cookieB;
+    REACAudioEngine *engine = (REACAudioEngine*) *cookieB;
     
     // We need to stop the audio engine regardless of whether it's a connect or a disconnect;
     // when connecting, we want to make sure to stop any old instance just in case.
@@ -160,10 +165,10 @@ void REACDevice::connectionCallback(REACProtocol *proto, void **cookieA, void** 
     }
     
     if (NULL == deviceInfo) {
-        IOLog("REACDevice[%p]::connectionCallback() - Disconnected.\n", device);
+        // IOLog("REACDevice[%p]::connectionCallback() - Disconnected.\n", device);
     }
     else {
-        IOLog("REACDevice[%p]::connectionCallback() - Connected.\n", device);
+        // IOLog("REACDevice[%p]::connectionCallback() - Connected.\n", device);
         
         *cookieB = (void*) device->createAudioEngine(proto);
     }
@@ -199,6 +204,7 @@ REACAudioEngine* REACDevice::createAudioEngine(REACProtocol* proto)
             newName->release();
         }
     }
+    audioEngineParams->setObject(REAC_PROTOCOL_KEY, proto);
     
     REACAudioEngine* audioEngine = new REACAudioEngine;
     if (!audioEngine) {

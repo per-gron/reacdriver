@@ -9,33 +9,35 @@
 
 #include "REACDevice.h"
 
-#define REACAudioEngine				com_pereckerdal_driver_REACAudioEngine
+#define REACAudioEngine                com_pereckerdal_driver_REACAudioEngine
 
 class REACAudioEngine : public IOAudioEngine
 {
     OSDeclareDefaultStructors(REACAudioEngine)
     
-	UInt32				mBufferSize;
-	void*				mBuffer;				// input/output buffer
-    float*				mThruBuffer;			// intermediate buffer to pass in-->out
-	
-	IOAudioStream*		outputStream;
-	IOAudioStream*		inputStream;
-    	
-	UInt32				mLastValidSampleFrame;
+    REACProtocol       *protocol;
     
-    IOTimerEventSource*	timerEventSource;
+    UInt32              mBufferSize;
+    void               *mBuffer;                // input/output buffer
+    float              *mThruBuffer;            // intermediate buffer to pass in-->out
     
-    UInt32				blockSize;				// In sample frames -- fixed, as defined in the Info.plist (e.g. 8192)
-    UInt32				numBlocks;
-    UInt32				currentBlock;
-    
-    UInt64				blockTimeoutNS;
-    UInt64				nextTime;				// the estimated time the timer will fire next
+    IOAudioStream      *outputStream;
+    IOAudioStream      *inputStream;
 
-    bool				duringHardwareInit;
+    UInt32              mLastValidSampleFrame;
     
-	
+    IOTimerEventSource *timerEventSource;
+    
+    UInt32              blockSize;                // In sample frames -- fixed, as defined in the Info.plist (e.g. 8192)
+    UInt32              numBlocks;
+    UInt32              currentBlock;
+    
+    UInt64              blockTimeoutNS;
+    UInt64              nextTime;                // the estimated time the timer will fire next
+
+    bool                duringHardwareInit;
+    
+    
 public:
 
     virtual bool init(OSDictionary *properties);
@@ -56,6 +58,8 @@ public:
     virtual IOReturn convertInputSamples(const void *sampleBuf, void *destBuf, UInt32 firstSampleFrame, UInt32 numSampleFrames, const IOAudioStreamFormat *streamFormat, IOAudioStream *audioStream);
     
     static void ourTimerFired(OSObject *target, IOTimerEventSource *sender);
+    
+    void gotSamples(int numSamples, UInt8 *samples);
     
 };
 
