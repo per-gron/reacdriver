@@ -152,6 +152,9 @@ bool REACProtocol::isConnected() const {
     return connected;
 }
 
+ifnet_t REACProtocol::getInterface() const {
+    return interface;
+}
 
 
 errno_t REACProtocol::filterInputFunc(void *cookie,

@@ -165,30 +165,60 @@ void REACDevice::connectionCallback(REACProtocol *proto, void **cookieA, void** 
     else {
         IOLog("REACDevice[%p]::connectionCallback() - Connected.\n", device);
         
-        *cookieB = (void*) device->createAudioEngine();
+        *cookieB = (void*) device->createAudioEngine(proto);
     }
 }
 
 
-REACAudioEngine* REACDevice::createAudioEngine()
+REACAudioEngine* REACDevice::createAudioEngine(REACProtocol* proto)
 {
-    OSDictionary *audioEngineParams = OSDynamicCast(OSDictionary, getProperty(AUDIO_ENGINE_PARAMS_KEY));
+    OSDictionary *originalAudioEngineParams = OSDynamicCast(OSDictionary, getProperty(AUDIO_ENGINE_PARAMS_KEY));
+    OSDictionary *audioEngineParams = NULL;
+    
+    ifnet_t interface = proto->getInterface();
+    u_int32_t unitNumber = ifnet_unit(interface);
+    const char* ifname = ifnet_name(interface);
 	
-    if (!audioEngineParams) {
+    if (!originalAudioEngineParams) {
         IOLog("REACDevice[%p]::createAudioEngine() - Error: no AudioEngine parameters in personality.\n", this);
         return NULL;
     }
     
-    REACAudioEngine*	audioEngine = new REACAudioEngine;
-    if (!audioEngine)
+    audioEngineParams = OSDynamicCast(OSDictionary, originalAudioEngineParams->copyCollection());
+    if (NULL == audioEngineParams) {
         return NULL;
+    }
     
-    if (!audioEngine->init(audioEngineParams))
-        return NULL;
+    OSString* desc = OSDynamicCast(OSString, audioEngineParams->getObject(DESCRIPTION_KEY));
+    if (NULL != desc) {
+        char buf[100];
+        snprintf(buf, sizeof(buf), "%s (%s%d)", desc->getCStringNoCopy(), ifname, unitNumber);
+        OSString* newName = OSString::withCStringNoCopy(buf);
+        if (newName) {
+            audioEngineParams->setObject(DESCRIPTION_KEY, newName);
+            newName->release();
+        }
+    }
+    
+    REACAudioEngine* audioEngine = new REACAudioEngine;
+    if (!audioEngine) {
+        goto Done;
+    }
+    
+    if (!audioEngine->init(audioEngineParams)) {
+        audioEngine->release();
+        audioEngine = NULL;
+        goto Done;
+    }
     
     initControls(audioEngine);
     activateAudioEngine(audioEngine);	// increments refcount and manages the object
     audioEngine->release();				// decrement refcount so object is released when the manager eventually releases it
+    
+Done:
+    if (NULL != audioEngineParams) {
+        audioEngineParams->release();
+    }
     
     return audioEngine;
 }

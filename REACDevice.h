@@ -55,7 +55,7 @@ class REACDevice : public IOAudioDevice
     virtual bool createProtocolListeners();
     static void samplesCallback(REACProtocol *proto, void **cookieA, void** cookieB, int numSamples, UInt8 *samples);
     static void connectionCallback(REACProtocol *proto, void **cookieA, void** cookieB, REACDeviceInfo *device);
-    virtual REACAudioEngine* createAudioEngine();
+    virtual REACAudioEngine* createAudioEngine(REACProtocol* proto);
     virtual IOReturn performPowerStateChange(IOAudioDevicePowerState oldPowerState, 
                                              IOAudioDevicePowerState newPowerState,
                                              UInt32 *microsecondsUntilComplete);

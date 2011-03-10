@@ -118,6 +118,9 @@ public:
     const REACDeviceInfo* getDeviceInfo() const;
     bool isListening() const;
     bool isConnected() const;
+    // If you want to continue using the ifnet_t object, make sure to call
+    // ifnet_reference on it, as REACProtocol will release it when it is freed.
+    ifnet_t getInterface() const;
 
 protected:
     ifnet_t             interface;
