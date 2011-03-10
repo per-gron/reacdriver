@@ -186,7 +186,7 @@ errno_t REACProtocol::filterInputFunc(void *cookie,
     
     packetHeader = (REACPacketHeader*) buf;
     
-    if (proto->lastCounter+1 != packetHeader->counter) {
+    if (proto->connected /* This prunes a lost packet message when connecting */ && proto->lastCounter+1 != packetHeader->counter) {
         if (!(65535 == proto->lastCounter && 0 == packetHeader->counter)) {
             IOLog("REACProtocol[%p]::filterInputFunc(): Lost packet [%d %d]\n",
                   cookie, proto->lastCounter, packetHeader->counter);

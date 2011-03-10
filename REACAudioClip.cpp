@@ -25,8 +25,9 @@
 //		numSampleFrames - the total number of sample frames to clip and convert
 //		streamFormat - the current format of the IOAudioStream this function is operating on
 //		audioStream - the audio stream this function is operating on
-IOReturn REACAudioEngine::clipOutputSamples(const void *mixBuf, void *sampleBuf, UInt32 firstSampleFrame, UInt32 numSampleFrames, const IOAudioStreamFormat *streamFormat, IOAudioStream *audioStream)
-{
+IOReturn REACAudioEngine::clipOutputSamples(const void *mixBuf, void *sampleBuf, UInt32 firstSampleFrame,
+                                            UInt32 numSampleFrames, const IOAudioStreamFormat *streamFormat,
+                                            IOAudioStream *audioStream) {
     UInt32 sampleIndex, maxSampleIndex;
     float *floatMixBuf;
     SInt16 *outputBuf;

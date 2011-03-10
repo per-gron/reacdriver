@@ -38,9 +38,9 @@
 						<key>IOAudioStreamAlignment</key>
 						<integer>1</integer>
 						<key>IOAudioStreamBitDepth</key>
-						<integer>32</integer>
+						<integer>24</integer>
 						<key>IOAudioStreamBitWidth</key>
-						<integer>32</integer>
+						<integer>24</integer>
 						<key>IOAudioStreamByteOrder</key>
 						<integer>0</integer>
 						<key>IOAudioStreamDriverTag</key>
@@ -57,8 +57,6 @@
 				</array>
 				<key>NumBlocks</key>
 				<integer>1024</integer>
-				<key>NumStreams</key>
-				<integer>1</integer>
 				<key>SampleRates</key>
 				<array>
 					<integer>96000</integer>

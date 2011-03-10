@@ -16,7 +16,6 @@
 #define REAC_PROTOCOL_KEY               "REACProtocol"
 #define BLOCK_SIZE_KEY                  "BlockSize"
 #define NUM_BLOCKS_KEY                  "NumBlocks"
-#define NUM_STREAMS_KEY                 "NumStreams"
 #define FORMATS_KEY                     "Formats"
 #define SAMPLE_RATES_KEY				"SampleRates"
 #define SEPARATE_STREAM_BUFFERS_KEY     "SeparateStreamBuffers"

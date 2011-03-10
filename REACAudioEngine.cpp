@@ -16,7 +16,6 @@
 
 #define BLOCK_SIZE        REAC_SAMPLES_PER_PACKET        // Sample frames
 #define NUM_BLOCKS        1024
-#define NUM_STREAMS       1
 
 #define super IOAudioEngine
 
@@ -120,185 +119,155 @@ bool REACAudioEngine::createAudioStreams(IOAudioSampleRate *initialSampleRate)
 {
     bool            result = false;
     OSNumber       *number = NULL;
-    UInt32          numStreams;
-    UInt32          streamNum;
     OSArray        *formatArray = NULL;
     OSArray        *sampleRateArray = NULL;
-    UInt32          startingChannelID = 1;
     OSString       *desc;
     
-    desc = OSDynamicCast(OSString, getProperty(DESCRIPTION_KEY));
-    if (desc)
-        setDescription(desc->getCStringNoCopy());
+    UInt32                  maxBitWidth = 0;
+    UInt32                  maxNumChannels = 0;
+    OSCollectionIterator   *formatIterator = NULL;
+    OSCollectionIterator   *sampleRateIterator = NULL;
+    OSDictionary           *formatDict;
+    IOAudioSampleRate       sampleRate;
+    IOAudioStreamFormat     initialFormat;
     
-    number = OSDynamicCast(OSNumber, getProperty(NUM_STREAMS_KEY));
-    if (number)
-        numStreams = number->unsigned32BitValue();
-    else
-        numStreams = NUM_STREAMS;
+    desc = OSDynamicCast(OSString, getProperty(DESCRIPTION_KEY));
+    if (desc) {
+        setDescription(desc->getCStringNoCopy());
+    }
     
     formatArray = OSDynamicCast(OSArray, getProperty(FORMATS_KEY));
     if (formatArray == NULL) {
         IOLog("SF formatArray is NULL\n");
-        goto Done;
+        goto Error;
     }
     
     sampleRateArray = OSDynamicCast(OSArray, getProperty(SAMPLE_RATES_KEY));
     if (sampleRateArray == NULL) {
         IOLog("SF sampleRateArray is NULL\n");
-        goto Done;
+        goto Error;
     }
     
-    for (streamNum = 0; streamNum < numStreams; streamNum++) {
-        UInt32                  maxBitWidth = 0;
-        UInt32                  maxNumChannels = 0;
-        OSCollectionIterator   *formatIterator = NULL;
-        OSCollectionIterator   *sampleRateIterator = NULL;
-        OSDictionary           *formatDict;
-        IOAudioSampleRate       sampleRate;
-        IOAudioStreamFormat     initialFormat;
-        bool                    initialFormatSet;
-        UInt32                  channelID;
-        char                    outputStreamName[64];
-        char                    inputStreamName[64];
+    sampleRate.whole = 0;
+    sampleRate.fraction = 0;
+    
+    inputStream = new IOAudioStream;
+    if (inputStream == NULL) {
+        IOLog("SF could not create new input IOAudioStream\n");
+        goto Error;
+    }
+    
+    outputStream = new IOAudioStream;
+    if (outputStream == NULL) {
+        IOLog("SF could not create new output IOAudioStream\n");
+        goto Error;
+    }
+    
+    if (!inputStream->initWithAudioEngine(this, kIOAudioStreamDirectionInput, 1 /* Starting channel ID */, "REAC Input Stream") ||
+        !outputStream->initWithAudioEngine(this, kIOAudioStreamDirectionOutput, 1 /* Starting channel ID */, "REAC Output Stream")) {
+        IOLog("SF could not init one of the streams with audio engine. \n");
+        goto Error;
+    }
+    
+    formatIterator = OSCollectionIterator::withCollection(formatArray);
+    if (!formatIterator) {
+        IOLog("SF NULL formatIterator\n");
+        goto Error;
+    }
+    
+    sampleRateIterator = OSCollectionIterator::withCollection(sampleRateArray);
+    if (!sampleRateIterator) {
+        IOLog("SF NULL sampleRateIterator\n");
+        goto Error;
+    }
+    
+    formatIterator->reset();
+    while ((formatDict = (OSDictionary *)formatIterator->getNextObject())) {
+        IOAudioStreamFormat format;
         
-        initialFormatSet = false;
-        
-        sampleRate.whole = 0;
-        sampleRate.fraction = 0;
-        
-        inputStream = new IOAudioStream;
-        if (inputStream == NULL) {
-            IOLog("SF could not create new input IOAudioStream\n");
+        if (OSDynamicCast(OSDictionary, formatDict) == NULL) {
+            IOLog("SF error casting formatDict\n");
             goto Error;
         }
         
-        outputStream = new IOAudioStream;
-        if (outputStream == NULL) {
-            IOLog("SF could not create new output IOAudioStream\n");
-            goto Error;
-        }
-
-        snprintf(inputStreamName, 64, "REAC Input Stream #%u", (unsigned int) (streamNum + 1));
-        snprintf(outputStreamName, 64, "REAC Output Stream #%u", (unsigned int) streamNum + 1);
-
-        if (!inputStream->initWithAudioEngine(this, kIOAudioStreamDirectionInput, startingChannelID, inputStreamName) ||
-            !outputStream->initWithAudioEngine(this, kIOAudioStreamDirectionOutput, startingChannelID, outputStreamName)) {
-            IOLog("SF could not init one of the streams with audio engine. \n");
+        if (IOAudioStream::createFormatFromDictionary(formatDict, &format) == NULL) {
+            IOLog("SF error in createFormatFromDictionary()\n");
             goto Error;
         }
         
-        formatIterator = OSCollectionIterator::withCollection(formatArray);
-        if (!formatIterator) {
-            IOLog("SF NULL formatIterator\n");
-            goto Error;
-        }
+        initialFormat = format;
         
-        sampleRateIterator = OSCollectionIterator::withCollection(sampleRateArray);
-        if (!sampleRateIterator) {
-            IOLog("SF NULL sampleRateIterator\n");
-            goto Error;
-        }
-        
-        formatIterator->reset();
-        while ((formatDict = (OSDictionary *)formatIterator->getNextObject())) {
-            IOAudioStreamFormat format;
-            
-            if (OSDynamicCast(OSDictionary, formatDict) == NULL) {
-                IOLog("SF error casting formatDict\n");
+        sampleRateIterator->reset();
+        while ((number = (OSNumber *)sampleRateIterator->getNextObject())) {
+            if (!OSDynamicCast(OSNumber, number)) {
+                IOLog("SF error iterating sample rates\n");
                 goto Error;
             }
             
-            if (IOAudioStream::createFormatFromDictionary(formatDict, &format) == NULL) {
-                IOLog("SF error in createFormatFromDictionary()\n");
-                goto Error;
+            sampleRate.whole = number->unsigned32BitValue();
+            
+            inputStream->addAvailableFormat(&format, &sampleRate, &sampleRate);
+            outputStream->addAvailableFormat(&format, &sampleRate, &sampleRate);
+            
+            if (format.fNumChannels > maxNumChannels) {
+                maxNumChannels = format.fNumChannels;
             }
             
-            if (!initialFormatSet) {
-                initialFormat = format;
+            if (format.fBitWidth > maxBitWidth) {
+                maxBitWidth = format.fBitWidth;
             }
             
-            sampleRateIterator->reset();
-            while ((number = (OSNumber *)sampleRateIterator->getNextObject())) {
-                if (!OSDynamicCast(OSNumber, number)) {
-                    IOLog("SF error iterating sample rates\n");
-                    goto Error;
-                }
-                
-                sampleRate.whole = number->unsigned32BitValue();
-                
-                inputStream->addAvailableFormat(&format, &sampleRate, &sampleRate);
-                outputStream->addAvailableFormat(&format, &sampleRate, &sampleRate);
-                
-                if (format.fNumChannels > maxNumChannels) {
-                    maxNumChannels = format.fNumChannels;
-                }
-                
-                if (format.fBitWidth > maxBitWidth) {
-                    maxBitWidth = format.fBitWidth;
-               }
-                
-                if (initialSampleRate->whole == 0) {
-                    initialSampleRate->whole = sampleRate.whole;
-                }
+            if (initialSampleRate->whole == 0) {
+                initialSampleRate->whole = sampleRate.whole;
             }
         }
-        
-        mBufferSize = blockSize * numBlocks * maxNumChannels * maxBitWidth / 8;
-        //IOLog("REAC streamBufferSize: %ld\n", mBufferSize);
-        
-        if (mBuffer == NULL) {
-            mBuffer = (void *)IOMalloc(mBufferSize);
-            if (!mBuffer) {
-                IOLog("REAC: Error allocating output buffer - %lu bytes.\n", (unsigned long)mBufferSize);
-                goto Error;
-            }
-            
-            mThruBuffer = (float*)IOMalloc(mBufferSize);
-            if (!mThruBuffer) {
-                IOLog("REAC: Error allocating thru buffer - %lu bytes.\n", (unsigned long)mBufferSize);
-                goto Error;
-            }
-            memset((UInt8*)mThruBuffer, 0, mBufferSize);
+    }
+    
+    mBufferSize = blockSize * numBlocks * maxNumChannels * maxBitWidth / 8;
+    //IOLog("REAC streamBufferSize: %ld\n", mBufferSize);
+    
+    if (mInBuffer == NULL) {
+        mInBuffer = (void *)IOMalloc(mBufferSize);
+        if (!mInBuffer) {
+            IOLog("REAC: Error allocating input buffer - %lu bytes.\n", (unsigned long)mBufferSize);
+            goto Error;
         }
-        
-        inputStream->setFormat(&initialFormat);
-        inputStream->setSampleBuffer(mBuffer, mBufferSize);
-        addAudioStream(inputStream);
-        inputStream->release();
-
-        outputStream->setFormat(&initialFormat);
-        outputStream->setSampleBuffer(mBuffer, mBufferSize);       
-        addAudioStream(outputStream);
-        outputStream->release();
-        
-        formatIterator->release();
-        sampleRateIterator->release();
-        
-        for (channelID = startingChannelID; channelID < (startingChannelID + maxNumChannels); channelID++) {
-            char channelName[20];
-            
-            snprintf(channelName, 20, "Channel %u", (unsigned int) channelID);
+    }
+    if (mOutBuffer == NULL) {
+        mOutBuffer = (void *)IOMalloc(mBufferSize);
+        if (!mOutBuffer) {
+            IOLog("REAC: Error allocating output buffer - %lu bytes.\n", (unsigned long)mBufferSize);
+            goto Error;
         }
-        
-        startingChannelID += maxNumChannels;
-        
-        continue;
+    }
+    
+    inputStream->setFormat(&initialFormat);
+    inputStream->setSampleBuffer(mInBuffer, mBufferSize);
+    addAudioStream(inputStream);
+    inputStream->release();
+    
+    outputStream->setFormat(&initialFormat);
+    outputStream->setSampleBuffer(mOutBuffer, mBufferSize);       
+    addAudioStream(outputStream);
+    outputStream->release();
+    
+    formatIterator->release();
+    sampleRateIterator->release();
+    
+    result = true;
+    goto Done;
 
 Error:
-        IOLog("REACAudioEngine[%p]::createAudioStreams() - ERROR\n", this);
-    
-        if (inputStream)
-            inputStream->release();
-        if (outputStream)
-            outputStream->release();
-        if (formatIterator)
-            formatIterator->release();
-        if (sampleRateIterator)
-            sampleRateIterator->release();
-        goto Done;
-    }
-    result = true;
+    IOLog("REACAudioEngine[%p]::createAudioStreams() - ERROR\n", this);
+
+    if (inputStream)
+        inputStream->release();
+    if (outputStream)
+        outputStream->release();
+    if (formatIterator)
+        formatIterator->release();
+    if (sampleRateIterator)
+        sampleRateIterator->release();
     
 Done:
     if (!result)
@@ -311,13 +280,13 @@ void REACAudioEngine::free()
 {
     //IOLog("REACAudioEngine[%p]::free()\n", this);
     
-    if (mBuffer) {
-        IOFree(mBuffer, mBufferSize);
-        mBuffer = NULL;
+    if (mInBuffer) {
+        IOFree(mInBuffer, mBufferSize);
+        mInBuffer = NULL;
     }
-    if (mThruBuffer) {
-        IOFree(mThruBuffer, mBufferSize);
-        mThruBuffer = NULL;
+    if (mOutBuffer) {
+        IOFree(mOutBuffer, mBufferSize);
+        mOutBuffer = NULL;
     }
     super::free();
 }
@@ -416,7 +385,7 @@ void REACAudioEngine::ourTimerFired(OSObject *target, IOTimerEventSource *sender
             IOAudioStream *outStream = audioEngine->getAudioStream(kIOAudioStreamDirectionOutput, 1);
             if (outStream->numClients == 0) {
                 // it has, so clean the buffer 
-                memset((UInt8*)audioEngine->mThruBuffer, 0, audioEngine->mBufferSize);
+                // memset((UInt8*)audioEngine->mThruBuffer, 0, audioEngine->mBufferSize);
             }
                     
             audioEngine->currentBlock++;

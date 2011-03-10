@@ -18,8 +18,8 @@ class REACAudioEngine : public IOAudioEngine
     REACProtocol       *protocol;
     
     UInt32              mBufferSize;
-    void               *mBuffer;                // input/output buffer
-    float              *mThruBuffer;            // intermediate buffer to pass in-->out
+    void               *mInBuffer;
+    void               *mOutBuffer;
     
     IOAudioStream      *outputStream;
     IOAudioStream      *inputStream;
