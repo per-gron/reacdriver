@@ -69,9 +69,9 @@ class REACProtocol;
 // Is only called when the connection callback has indicated that there is a connection
 //   When in REAC_SLAVE mode, this function is expected to overwrite the samples parameter
 // with the output data [Note to self: if I do this, make sure that the buffer is big enough]
-typedef void(*reac_samples_callback_t)(REACProtocol* proto, void* cookie, int numSamples, UInt8* samples);
+typedef void(*reac_samples_callback_t)(REACProtocol* proto, void **cookieA, void** cookieB, int numSamples, UInt8* samples);
 // Device is NULL on disconnect
-typedef void(*reac_connection_callback_t)(REACProtocol* proto, void* cookie, REACDeviceInfo* device);
+typedef void(*reac_connection_callback_t)(REACProtocol* proto, void **cookieA, void** cookieB, REACDeviceInfo* device);
 
 
 // TODO Thread safety?
@@ -93,15 +93,15 @@ public:
 protected:
     virtual bool initWithInterface(ifnet_t interface, REACMode mode,
                                    reac_connection_callback_t connectionCallback,
-                                   void* connectionCookie,
                                    reac_samples_callback_t samplesCallback,
-                                   void* samplesCookie);
+                                   void* cookieA,
+                                   void* cookieB);
 public:
     static REACProtocol* withInterface(ifnet_t interface, REACMode mode,
                                        reac_connection_callback_t connectionCallback,
-                                       void* connectionCookie,
                                        reac_samples_callback_t samplesCallback,
-                                       void* samplesCookie);
+                                       void* cookieA,
+                                       void* cookieB);
 protected:
     virtual void free();
 public:
@@ -116,6 +116,7 @@ public:
     errno_t pushSamples(int numSamples, UInt8* samples);
     
     const REACDeviceInfo* getDeviceInfo() const;
+    bool isListening() const;
     bool isConnected() const;
 
 protected:
@@ -130,9 +131,9 @@ protected:
     REACDeviceInfo     *deviceInfo;
     
     reac_samples_callback_t samplesCallback;
-    void* samplesCookie;
     reac_connection_callback_t connectionCallback;
-    void* connectionCookie;
+    void* cookieA;
+    void* cookieB;
     
     static errno_t filterInputFunc(void *cookie,
                                    ifnet_t interface, 

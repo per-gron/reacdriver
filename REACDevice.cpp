@@ -31,11 +31,19 @@ const SInt32 REACDevice::kVolumeMax = 65535;
 const SInt32 REACDevice::kGainMax = 65535;
 
 
+bool REACDevice::init(OSDictionary *properties) {
+    protocols = OSArray::withCapacity(5);
+    if (NULL == protocols) {
+        return false;
+    }
+    return super::init(properties);
+}
+
 bool REACDevice::initHardware(IOService *provider)
 {
     bool result = false;
     
-	//IOLog("REACDevice[%p]::initHardware(%p)\n", this, provider);
+	// IOLog("REACDevice[%p]::initHardware(%p)\n", this, provider);
     
     if (!super::initHardware(provider))
         goto Done;
@@ -52,6 +60,19 @@ bool REACDevice::initHardware(IOService *provider)
 Done:
 
     return result;
+}
+
+void REACDevice::stop(IOService *provider)
+{
+    super::stop(provider);
+    protocols->flushCollection();
+}
+
+void REACDevice::free() {
+    if (NULL != protocols) {
+        protocols->release();
+    }
+    super::free();
 }
 
 bool REACDevice::createProtocolListeners() {
@@ -77,100 +98,99 @@ bool REACDevice::createProtocolListeners() {
         
         if (NULL == ifname) {
             IOLog("REACDevice: Invalid interface entry in personality (no string name).\n");
-            continue;
+            goto Next;
         }
         
         if (0 != ifnet_find_by_name(ifname->getCStringNoCopy(), &interface)) {
             IOLog("REACDevice[%p]::createProtocolListeners() - Error: failed to find interface '%s'.\n",
                   this, ifname->getCStringNoCopy());
-            continue;
+            goto Next;
         }
         
         protocol = REACProtocol::withInterface(interface,
                                                REACProtocol::REAC_SPLIT,
                                                &REACDevice::connectionCallback,
-                                               this, // Connection cookie
                                                &REACDevice::samplesCallback,
-                                               this); // Samples cookie
+                                               this, // Cookie A (the REACAudioDevice)
+                                               NULL); // Cookie B (the REACAudioEngine)
         ifnet_release(interface);
         
         if (NULL == protocol) {
             IOLog("REACDevice[%p]::createProtocolListeners() - Error: failed to initialize REAC listener for '%s'.\n",
                   this, ifname->getCStringNoCopy());
-            continue;
+            goto Next;
         }
         
         if (!protocol->listen()) {
             IOLog("REACDevice[%p]::createProtocolListeners() - Error: failed to listen to '%s'.\n",
                   this, ifname->getCStringNoCopy());
-            continue;
+            goto Next;
         }
         
-        protocol->detach();
-        protocol->release();
+        if (!protocols->setObject(protocol)) {
+            IOLog("REACDevice[%p]::createProtocolListeners(): Failed to insert protocol listener '%s' into array.\n",
+                  this, ifname->getCStringNoCopy());
+            goto Next;
+        }
+        
+    Next:
+        if (NULL != protocol) {
+            protocol->release();
+        }
     }
 	
     interfaceIterator->release();
     return true;
 }
 
-void REACDevice::samplesCallback(REACProtocol* proto, void* cookie, int numSamples, UInt8* samples) {
-    IOLog("REACDevice[%p]::samplesCallback()\n", cookie);
+void REACDevice::samplesCallback(REACProtocol *proto, void **cookieA, void** cookieB, int numSamples, UInt8 *samples) {
+    IOLog("REACDevice[%p]::samplesCallback()\n", *cookieA);
 }
 
-void REACDevice::connectionCallback(REACProtocol* proto, void* cookie, REACDeviceInfo* device) {
-    if (NULL == device) {
-        IOLog("REACDevice[%p]::connectionCallback() - Disconnected.\n", cookie);
+void REACDevice::connectionCallback(REACProtocol *proto, void **cookieA, void** cookieB, REACDeviceInfo *deviceInfo) {
+    REACDevice* device = (REACDevice*) *cookieA;
+    
+    REACAudioEngine* engine = (REACAudioEngine*) *cookieB;
+    
+    // We need to stop the audio engine regardless of whether it's a connect or a disconnect;
+    // when connecting, we want to make sure to stop any old instance just in case.
+    if (NULL != engine) {
+        engine->performAudioEngineStop();
+        *cookieB = NULL;
+    }
+    
+    if (NULL == deviceInfo) {
+        IOLog("REACDevice[%p]::connectionCallback() - Disconnected.\n", device);
     }
     else {
-        IOLog("REACDevice[%p]::connectionCallback() - Connected.\n", cookie);
+        IOLog("REACDevice[%p]::connectionCallback() - Connected.\n", device);
+        
+        *cookieB = (void*) device->createAudioEngine();
     }
 }
 
-void REACDevice::stop(IOService *provider)
-{
-    super::stop(provider);
-    if (NULL != proto) proto->detach();
-}
 
-
-bool REACDevice::createAudioEngines()
+REACAudioEngine* REACDevice::createAudioEngine()
 {
-    OSArray*				audioEngineArray = OSDynamicCast(OSArray, getProperty(AUDIO_ENGINES_KEY));
-    OSCollectionIterator*	audioEngineIterator;
-    OSDictionary*			audioEngineDict;
+    OSDictionary *audioEngineParams = OSDynamicCast(OSDictionary, getProperty(AUDIO_ENGINE_PARAMS_KEY));
 	
-    if (!audioEngineArray) {
-        IOLog("REACDevice[%p]::createAudioEngine() - Error: no AudioEngine array in personality.\n", this);
-        return false;
+    if (!audioEngineParams) {
+        IOLog("REACDevice[%p]::createAudioEngine() - Error: no AudioEngine parameters in personality.\n", this);
+        return NULL;
     }
     
-	audioEngineIterator = OSCollectionIterator::withCollection(audioEngineArray);
-    if (!audioEngineIterator) {
-		IOLog("REACDevice: no audio engines available.\n");
-		return true;
-	}
+    REACAudioEngine*	audioEngine = new REACAudioEngine;
+    if (!audioEngine)
+        return NULL;
     
-    while ((audioEngineDict = (OSDictionary*)audioEngineIterator->getNextObject())) {
-		REACAudioEngine*	audioEngine = NULL;
-		
-        if (OSDynamicCast(OSDictionary, audioEngineDict) == NULL)
-            continue;
-        
-		audioEngine = new REACAudioEngine;
-        if (!audioEngine)
-			continue;
-        
-        if (!audioEngine->init(audioEngineDict))
-			continue;
-
-		initControls(audioEngine);
-        activateAudioEngine(audioEngine);	// increments refcount and manages the object
-        audioEngine->release();				// decrement refcount so object is released when the manager eventually releases it
-    }
-	
-    audioEngineIterator->release();
-    return true;
+    if (!audioEngine->init(audioEngineParams))
+        return NULL;
+    
+    initControls(audioEngine);
+    activateAudioEngine(audioEngine);	// increments refcount and manages the object
+    audioEngine->release();				// decrement refcount so object is released when the manager eventually releases it
+    
+    return audioEngine;
 }
 
 IOReturn REACDevice::performPowerStateChange(IOAudioDevicePowerState oldPowerState, 

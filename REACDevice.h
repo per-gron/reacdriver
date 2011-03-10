@@ -9,10 +9,9 @@
 
 #include "REACProtocol.h"
 
-#define AUDIO_ENGINE_PARAMS_KEY         "AudioEnginesParams"
+#define AUDIO_ENGINE_PARAMS_KEY         "AudioEngineParams"
 #define INTERFACES_KEY                  "Interfaces"
 #define INTERFACE_NAME_KEY              "Name"
-#define AUDIO_ENGINES_KEY               "AudioEngines"
 #define DESCRIPTION_KEY                 "Description"
 #define BLOCK_SIZE_KEY                  "BlockSize"
 #define NUM_BLOCKS_KEY                  "NumBlocks"
@@ -39,8 +38,7 @@ class REACDevice : public IOAudioDevice
 
 	
 	// instance members
-    
-    REACProtocol* proto;
+    OSArray* protocols;
 
 	SInt32 mVolume[17];
     SInt32 mMuteOut[17];
@@ -50,12 +48,14 @@ class REACDevice : public IOAudioDevice
 	
 	// methods
 	
+    virtual bool init(OSDictionary *properties); 
     virtual bool initHardware(IOService *provider);
-    virtual bool createProtocolListeners();
-    static void samplesCallback(REACProtocol* proto, void* cookie, int numSamples, UInt8* samples);
-    static void connectionCallback(REACProtocol* proto, void* cookie, REACDeviceInfo* device);
     virtual void stop(IOService *provider);
-    virtual bool createAudioEngines();
+    virtual void free();
+    virtual bool createProtocolListeners();
+    static void samplesCallback(REACProtocol *proto, void **cookieA, void** cookieB, int numSamples, UInt8 *samples);
+    static void connectionCallback(REACProtocol *proto, void **cookieA, void** cookieB, REACDeviceInfo *device);
+    virtual REACAudioEngine* createAudioEngine();
     virtual IOReturn performPowerStateChange(IOAudioDevicePowerState oldPowerState, 
                                              IOAudioDevicePowerState newPowerState,
                                              UInt32 *microsecondsUntilComplete);
@@ -76,4 +76,4 @@ class REACDevice : public IOAudioDevice
     
 };
 
-#endif // _SAMPLEAUDIODEVICE_H
+#endif // _REACAUDIODEVICE_H

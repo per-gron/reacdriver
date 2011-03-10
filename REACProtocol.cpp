@@ -20,9 +20,9 @@ OSDefineMetaClassAndStructors(REACProtocol, OSObject)
 
 bool REACProtocol::initWithInterface(ifnet_t interface_, REACMode mode_,
                                      reac_connection_callback_t connectionCallback_,
-                                     void* connectionCookie_,
                                      reac_samples_callback_t samplesCallback_,
-                                     void* samplesCookie_) {
+                                     void* cookieA_,
+                                     void* cookieB_) {
     OSMallocTag mt = OSMalloc_Tagalloc("REAC packet memory", OSMT_DEFAULT);
     
     // Hack: Pretend to be connected immediately
@@ -44,9 +44,9 @@ bool REACProtocol::initWithInterface(ifnet_t interface_, REACMode mode_,
     reacMallocTag = mt;
     lastCounter = 0;
     samplesCallback = samplesCallback_;
-    samplesCookie = samplesCookie_;
     connectionCallback = connectionCallback_;
-    connectionCookie = connectionCookie_;
+    cookieA = cookieA_;
+    cookieB = cookieB_;
     mode = mode_;
     
     ifnet_reference(interface_);
@@ -63,13 +63,13 @@ Fail:
 }
 
 REACProtocol* REACProtocol::withInterface(ifnet_t interface, REACMode mode,
-                                 reac_connection_callback_t connectionCallback,
-                                 void* connectionCookie,
-                                 reac_samples_callback_t samplesCallback,
-                                 void* samplesCookie) {
+                                          reac_connection_callback_t connectionCallback,
+                                          reac_samples_callback_t samplesCallback,
+                                          void* cookieA,
+                                          void* cookieB) {
     REACProtocol* p = new REACProtocol;
     if (NULL == p) return NULL;
-    bool result = p->initWithInterface(interface, mode, connectionCallback, connectionCookie, samplesCallback, samplesCookie);
+    bool result = p->initWithInterface(interface, mode, connectionCallback, samplesCallback, cookieA, cookieB);
     if (!result) {
         p->release();
         return NULL;
@@ -112,7 +112,7 @@ bool REACProtocol::listen() {
     // Hack: Announce connect
     connected = true;
     if (NULL != connectionCallback) {
-        connectionCallback(this, connectionCookie, deviceInfo);
+        connectionCallback(this, &cookieA, &cookieB, deviceInfo);
     }
     
     return true;
@@ -123,7 +123,7 @@ void REACProtocol::detach() {
         if (isConnected()) {
             // Announce disconnect
             if (NULL != connectionCallback) {
-                connectionCallback(this, connectionCookie, NULL);
+                connectionCallback(this, &cookieA, &cookieB, NULL);
             }
         }
         
@@ -142,6 +142,10 @@ errno_t REACProtocol::pushSamples(int numSamples, UInt8 *samples) {
 
 const REACDeviceInfo* REACProtocol::getDeviceInfo() const {
     return deviceInfo;
+}
+
+bool REACProtocol::isListening() const {
+    return listening;
 }
 
 bool REACProtocol::isConnected() const {
@@ -194,7 +198,8 @@ errno_t REACProtocol::filterInputFunc(void *cookie,
     
     if (proto->connected) {
         if (NULL != proto->samplesCallback) {
-            proto->samplesCallback(proto, proto->samplesCookie, REAC_SAMPLES_PER_PACKET, (UInt8*) buf+sizeof(REACPacketHeader));
+            proto->samplesCallback(proto, &proto->cookieA, &proto->cookieB,
+                                   REAC_SAMPLES_PER_PACKET, (UInt8*) buf+sizeof(REACPacketHeader));
         }
     }
     proto->processDataStream(packetHeader);
