@@ -121,3 +121,91 @@ IOReturn REACAudioEngine::convertInputSamples(const void *sampleBuf, void *destB
     
     return kIOReturnSuccess;
 }
+
+
+
+
+
+
+
+
+
+#if 0
+IOReturn REACAudioEngine::clipOutputSamples(const void *mixBuf, void *sampleBuf, UInt32 firstSampleFrame, UInt32 numSampleFrames, const IOAudioStreamFormat *streamFormat, IOAudioStream *audioStream)
+{
+    UInt32                channelCount = streamFormat->fNumChannels;
+    UInt32                offset = firstSampleFrame * channelCount;
+    UInt32                byteOffset = offset * sizeof(float);
+    UInt32                numBytes = numSampleFrames * channelCount * sizeof(float);
+    REACDevice*    device = (REACDevice*)audioDevice;
+    
+#if 0
+    IOLog("REACAudioEngine[%p]::clipOutputSamples() -- channelCount:%u \n", this, (uint)channelCount);
+    IOLog("    input -- numChannels: %u", (uint)inputStream->format.fNumChannels);
+    IOLog("    bitDepth: %u", (uint)inputStream->format.fBitDepth);
+    IOLog("    bitWidth: %u", (uint)inputStream->format.fBitWidth);
+    IOLog("    \n");
+    IOLog("    output -- numChannels: %u", (uint)inputStream->format.fNumChannels);
+    IOLog("    bitDepth: %u", (uint)inputStream->format.fBitDepth);
+    IOLog("    bitWidth: %u", (uint)inputStream->format.fBitWidth);
+    IOLog("    \n");
+#endif
+    
+#if 0
+    IOLog("INPUT: firstSampleFrame: %u   numSampleFrames: %u \n", (uint)firstSampleFrame, (uint)numSampleFrames);
+#endif
+    mLastValidSampleFrame = firstSampleFrame+numSampleFrames;
+    
+    // TODO: where is the sampleFrame wrapped?
+    // TODO: try to put a mutex around reading and writing
+    // TODO: why is the reading always trailing by at least 512 frames? (when 512 is the input framesize)?
+    
+    if (device->mMuteIn[0]) {
+        memset((UInt8*)mThruBuffer + byteOffset, 0, numBytes);
+    }
+    else {
+        memcpy((UInt8*)mThruBuffer + byteOffset, (UInt8 *)mixBuf + byteOffset, numBytes);
+        
+        float masterGain = device->mGain[0] / ((float)REACDevice::kGainMax);
+        float masterVolume = device->mVolume[0] / ((float)REACDevice::kVolumeMax);
+        
+        for (UInt32 channel = 0; channel < channelCount; channel++) {
+            SInt32    channelMute = device->mMuteIn[channel+1];
+            float    channelGain = device->mGain[channel+1] / ((float)REACDevice::kGainMax);
+            float    channelVolume = device->mVolume[channel+1] / ((float)REACDevice::kVolumeMax);
+            float    adjustment = masterVolume * channelVolume * masterGain * channelGain;
+            
+            for (UInt32 channelBufferIterator = 0; channelBufferIterator < numSampleFrames; channelBufferIterator++) {
+                if (channelMute)
+                    mThruBuffer[offset + channelBufferIterator*channelCount + channel] = 0;
+                else
+                    mThruBuffer[offset + channelBufferIterator*channelCount + channel] *= adjustment;
+            }
+        }
+    }
+    return kIOReturnSuccess;
+}
+
+
+// This is called when client apps need input audio.  Here we give them saved audio from the clip routine.
+
+IOReturn REACAudioEngine::convertInputSamples(const void *sampleBuf, void *destBuf, UInt32 firstSampleFrame, UInt32 numSampleFrames, const IOAudioStreamFormat *streamFormat, IOAudioStream *audioStream)
+{
+    UInt32                frameSize = streamFormat->fNumChannels * sizeof(float);
+    UInt32                offset = firstSampleFrame * frameSize;
+    REACDevice*    device = (REACDevice*)audioDevice;
+    
+#if 0
+    //IOLog("REACAudioEngine[%p]::convertInputSamples() -- channelCount:%u \n", this, (uint)streamFormat->fNumChannels);
+    IOLog("OUTPUT: firstSampleFrame: %u   numSampleFrames: %u \n", (uint)firstSampleFrame, (uint)numSampleFrames);
+    IOLog("    mLastValidSampleFrame: %u  (diff: %ld)   \n", (uint)mLastValidSampleFrame, long(mLastValidSampleFrame) - long(firstSampleFrame+numSampleFrames));
+#endif 
+    
+    if (device->mMuteOut[0])
+        memset((UInt8*)destBuf, 0, numSampleFrames * frameSize);
+    else
+        memcpy((UInt8*)destBuf, (UInt8*)mThruBuffer + offset, numSampleFrames * frameSize);
+    
+    return kIOReturnSuccess;
+}
+#endif

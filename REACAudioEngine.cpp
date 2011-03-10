@@ -14,9 +14,9 @@
 
 #include "REACProtocol.h"
 
-#define BLOCK_SIZE		REAC_SAMPLES_PER_PACKET		// Sample frames
-#define NUM_BLOCKS		1024
-#define NUM_STREAMS		1
+#define BLOCK_SIZE        REAC_SAMPLES_PER_PACKET        // Sample frames
+#define NUM_BLOCKS        1024
+#define NUM_STREAMS       1
 
 #define super IOAudioEngine
 
@@ -28,7 +28,7 @@ bool REACAudioEngine::init(OSDictionary *properties)
     bool result = false;
     OSNumber *number = NULL;
     
-	//IOLog("REACAudioEngine[%p]::init()\n", this);
+    //IOLog("REACAudioEngine[%p]::init()\n", this);
 
     if (!super::init(properties)) {
         goto Done;
@@ -45,7 +45,7 @@ bool REACAudioEngine::init(OSDictionary *properties)
     
     inputStream = outputStream = NULL;
     duringHardwareInit = FALSE;
-	mLastValidSampleFrame = 0;
+    mLastValidSampleFrame = 0;
     result = true;
     
 Done:
@@ -71,10 +71,10 @@ bool REACAudioEngine::initHardware(IOService *provider)
     initialSampleRate.fraction = 0;
 
     if (!createAudioStreams(&initialSampleRate)) {
-		IOLog("REACAudioEngine::initHardware() failed\n");
+        IOLog("REACAudioEngine::initHardware() failed\n");
         goto Done;
     }
-	
+    
     if (initialSampleRate.whole == 0) {
         goto Done;
     }
@@ -84,7 +84,8 @@ bool REACAudioEngine::initHardware(IOService *provider)
     blockTimeoutNS *= 1000000000;
     blockTimeoutNS /= initialSampleRate.whole;
 
-	setSampleRate(&initialSampleRate);
+    setSampleRate(&initialSampleRate);
+    setSampleOffset(blockSize);
     
     // Set the number of sample frames in each buffer
     setNumSampleFramesPerBuffer(blockSize * numBlocks);
@@ -112,14 +113,14 @@ Done:
  
 bool REACAudioEngine::createAudioStreams(IOAudioSampleRate *initialSampleRate)
 {
-    bool			result = false;
-    OSNumber*		number = NULL;
-    UInt32			numStreams;
-	UInt32			streamNum;
-    OSArray*		formatArray = NULL;
-	OSArray*		sampleRateArray = NULL;
-    UInt32			startingChannelID = 1;
-    OSString*		desc;
+    bool            result = false;
+    OSNumber       *number = NULL;
+    UInt32          numStreams;
+    UInt32          streamNum;
+    OSArray        *formatArray = NULL;
+    OSArray        *sampleRateArray = NULL;
+    UInt32          startingChannelID = 1;
+    OSString       *desc;
     
     desc = OSDynamicCast(OSString, getProperty(DESCRIPTION_KEY));
     if (desc)
@@ -128,49 +129,49 @@ bool REACAudioEngine::createAudioStreams(IOAudioSampleRate *initialSampleRate)
     number = OSDynamicCast(OSNumber, getProperty(NUM_STREAMS_KEY));
     if (number)
         numStreams = number->unsigned32BitValue();
-	else
+    else
         numStreams = NUM_STREAMS;
     
     formatArray = OSDynamicCast(OSArray, getProperty(FORMATS_KEY));
     if (formatArray == NULL) {
-		IOLog("SF formatArray is NULL\n");
+        IOLog("SF formatArray is NULL\n");
         goto Done;
     }
     
     sampleRateArray = OSDynamicCast(OSArray, getProperty(SAMPLE_RATES_KEY));
     if (sampleRateArray == NULL) {
-		IOLog("SF sampleRateArray is NULL\n");
+        IOLog("SF sampleRateArray is NULL\n");
         goto Done;
     }
     
     for (streamNum = 0; streamNum < numStreams; streamNum++) {
-        UInt32					maxBitWidth = 0;
-        UInt32					maxNumChannels = 0;
-        OSCollectionIterator*	formatIterator = NULL;
-		OSCollectionIterator*	sampleRateIterator = NULL;
-        OSDictionary*			formatDict;
-        IOAudioSampleRate		sampleRate;
-        IOAudioStreamFormat		initialFormat;
-        bool					initialFormatSet;
-        UInt32					channelID;
-        char					outputStreamName[64];
-		char					inputStreamName[64];
+        UInt32                  maxBitWidth = 0;
+        UInt32                  maxNumChannels = 0;
+        OSCollectionIterator   *formatIterator = NULL;
+        OSCollectionIterator   *sampleRateIterator = NULL;
+        OSDictionary           *formatDict;
+        IOAudioSampleRate       sampleRate;
+        IOAudioStreamFormat     initialFormat;
+        bool                    initialFormatSet;
+        UInt32                  channelID;
+        char                    outputStreamName[64];
+        char                    inputStreamName[64];
         
         initialFormatSet = false;
         
         sampleRate.whole = 0;
         sampleRate.fraction = 0;
-		
+        
         inputStream = new IOAudioStream;
         if (inputStream == NULL) {
-			IOLog("SF could not create new input IOAudioStream\n");
+            IOLog("SF could not create new input IOAudioStream\n");
             goto Error;
         }
         
         outputStream = new IOAudioStream;
         if (outputStream == NULL) {
-			IOLog("SF could not create new output IOAudioStream\n");
-			goto Error;
+            IOLog("SF could not create new output IOAudioStream\n");
+            goto Error;
         }
 
         snprintf(inputStreamName, 64, "REAC Input Stream #%u", (unsigned int) (streamNum + 1));
@@ -178,19 +179,19 @@ bool REACAudioEngine::createAudioStreams(IOAudioSampleRate *initialSampleRate)
 
         if (!inputStream->initWithAudioEngine(this, kIOAudioStreamDirectionInput, startingChannelID, inputStreamName) ||
             !outputStream->initWithAudioEngine(this, kIOAudioStreamDirectionOutput, startingChannelID, outputStreamName)) {
-			IOLog("SF could not init one of the streams with audio engine. \n");
+            IOLog("SF could not init one of the streams with audio engine. \n");
             goto Error;
         }
         
         formatIterator = OSCollectionIterator::withCollection(formatArray);
         if (!formatIterator) {
-			IOLog("SF NULL formatIterator\n");
+            IOLog("SF NULL formatIterator\n");
             goto Error;
         }
         
         sampleRateIterator = OSCollectionIterator::withCollection(sampleRateArray);
         if (!sampleRateIterator) {
-			IOLog("SF NULL sampleRateIterator\n");
+            IOLog("SF NULL sampleRateIterator\n");
             goto Error;
         }
         
@@ -199,13 +200,13 @@ bool REACAudioEngine::createAudioStreams(IOAudioSampleRate *initialSampleRate)
             IOAudioStreamFormat format;
             
             if (OSDynamicCast(OSDictionary, formatDict) == NULL) {
-				IOLog("SF error casting formatDict\n");
+                IOLog("SF error casting formatDict\n");
                 goto Error;
             }
             
             if (IOAudioStream::createFormatFromDictionary(formatDict, &format) == NULL) {
-				IOLog("SF error in createFormatFromDictionary()\n");
-				goto Error;
+                IOLog("SF error in createFormatFromDictionary()\n");
+                goto Error;
             }
             
             if (!initialFormatSet) {
@@ -215,14 +216,14 @@ bool REACAudioEngine::createAudioStreams(IOAudioSampleRate *initialSampleRate)
             sampleRateIterator->reset();
             while ((number = (OSNumber *)sampleRateIterator->getNextObject())) {
                 if (!OSDynamicCast(OSNumber, number)) {
-					IOLog("SF error iterating sample rates\n");
+                    IOLog("SF error iterating sample rates\n");
                     goto Error;
                 }
                 
                 sampleRate.whole = number->unsigned32BitValue();
                 
                 inputStream->addAvailableFormat(&format, &sampleRate, &sampleRate);
-				outputStream->addAvailableFormat(&format, &sampleRate, &sampleRate);
+                outputStream->addAvailableFormat(&format, &sampleRate, &sampleRate);
                 
                 if (format.fNumChannels > maxNumChannels) {
                     maxNumChannels = format.fNumChannels;
@@ -240,14 +241,14 @@ bool REACAudioEngine::createAudioStreams(IOAudioSampleRate *initialSampleRate)
         
         mBufferSize = blockSize * numBlocks * maxNumChannels * maxBitWidth / 8;
         //IOLog("REAC streamBufferSize: %ld\n", mBufferSize);
-		
+        
         if (mBuffer == NULL) {
             mBuffer = (void *)IOMalloc(mBufferSize);
             if (!mBuffer) {
                 IOLog("REAC: Error allocating output buffer - %lu bytes.\n", (unsigned long)mBufferSize);
                 goto Error;
             }
-			
+            
             mThruBuffer = (float*)IOMalloc(mBufferSize);
             if (!mThruBuffer) {
                 IOLog("REAC: Error allocating thru buffer - %lu bytes.\n", (unsigned long)mBufferSize);
@@ -257,12 +258,12 @@ bool REACAudioEngine::createAudioStreams(IOAudioSampleRate *initialSampleRate)
         }
         
         inputStream->setFormat(&initialFormat);
-		inputStream->setSampleBuffer(mBuffer, mBufferSize);
+        inputStream->setSampleBuffer(mBuffer, mBufferSize);
         addAudioStream(inputStream);
         inputStream->release();
 
         outputStream->setFormat(&initialFormat);
-		outputStream->setSampleBuffer(mBuffer, mBufferSize);       
+        outputStream->setSampleBuffer(mBuffer, mBufferSize);       
         addAudioStream(outputStream);
         outputStream->release();
         
@@ -292,7 +293,7 @@ Error:
             sampleRateIterator->release();
         goto Done;
     }
-	result = true;
+    result = true;
     
 Done:
     if (!result)
@@ -303,7 +304,7 @@ Done:
  
 void REACAudioEngine::free()
 {
-	//IOLog("REACAudioEngine[%p]::free()\n", this);
+    //IOLog("REACAudioEngine[%p]::free()\n", this);
     
     if (mBuffer) {
         IOFree(mBuffer, mBufferSize);
@@ -346,7 +347,6 @@ IOReturn REACAudioEngine::performAudioEngineStart()
     return kIOReturnSuccess;
 }
 
- 
 IOReturn REACAudioEngine::performAudioEngineStop()
 {
     //IOLog("REACAudioEngine[%p]::performAudioEngineStop()\n", this);
@@ -356,7 +356,6 @@ IOReturn REACAudioEngine::performAudioEngineStop()
     return kIOReturnSuccess;
 }
 
- 
 UInt32 REACAudioEngine::getCurrentSampleFrame()
 {
     //IOLog("REACAudioEngine[%p]::getCurrentSampleFrame() - currentBlock = %lu\n", this, currentBlock);
@@ -401,21 +400,21 @@ IOReturn REACAudioEngine::performFormatChange(IOAudioStream *audioStream, const 
 void REACAudioEngine::ourTimerFired(OSObject *target, IOTimerEventSource *sender)
 {
     if (target) {
-        REACAudioEngine	*audioEngine = OSDynamicCast(REACAudioEngine, target);
-		UInt64				thisTimeNS;
-		uint64_t			time;
-		SInt64				diff;
+        REACAudioEngine  *audioEngine = OSDynamicCast(REACAudioEngine, target);
+        UInt64            thisTimeNS;
+        uint64_t          time;
+        SInt64            diff;
         
         if (audioEngine) {
-			// make sure we have a client, and thus new data so we don't keep on 
-			// just looping around the last client's last buffer!    
+            // make sure we have a client, and thus new data so we don't keep on 
+            // just looping around the last client's last buffer!    
             IOAudioStream *outStream = audioEngine->getAudioStream(kIOAudioStreamDirectionOutput, 1);
             if (outStream->numClients == 0) {
                 // it has, so clean the buffer 
                 memset((UInt8*)audioEngine->mThruBuffer, 0, audioEngine->mBufferSize);
             }
                     
-			audioEngine->currentBlock++;
+            audioEngine->currentBlock++;
             if (audioEngine->currentBlock >= audioEngine->numBlocks) {
                 audioEngine->currentBlock = 0;
                 audioEngine->takeTimeStamp();
@@ -424,92 +423,10 @@ void REACAudioEngine::ourTimerFired(OSObject *target, IOTimerEventSource *sender
             // calculate next time to fire, by taking the time and comparing it to the time we requested.                                 
             clock_get_uptime(&time);
             absolutetime_to_nanoseconds(time, &thisTimeNS);
-			// this next calculation must be signed or we will introduce distortion after only a couple of vectors
-			diff = ((SInt64)audioEngine->nextTime - (SInt64)thisTimeNS);
+            // this next calculation must be signed or we will introduce distortion after only a couple of vectors
+            diff = ((SInt64)audioEngine->nextTime - (SInt64)thisTimeNS);
             sender->setTimeout(audioEngine->blockTimeoutNS + diff);
             audioEngine->nextTime += audioEngine->blockTimeoutNS;
         }
     }
 }
-
-#if 0
-/*
-IOReturn REACAudioEngine::clipOutputSamples(const void *mixBuf, void *sampleBuf, UInt32 firstSampleFrame, UInt32 numSampleFrames, const IOAudioStreamFormat *streamFormat, IOAudioStream *audioStream)
-{
-    UInt32				channelCount = streamFormat->fNumChannels;
-    UInt32				offset = firstSampleFrame * channelCount;
-    UInt32				byteOffset = offset * sizeof(float);
-    UInt32				numBytes = numSampleFrames * channelCount * sizeof(float);
-	REACDevice*	device = (REACDevice*)audioDevice;
-	
-#if 0
-	IOLog("REACAudioEngine[%p]::clipOutputSamples() -- channelCount:%u \n", this, (uint)channelCount);
-	IOLog("    input -- numChannels: %u", (uint)inputStream->format.fNumChannels);
-	IOLog("    bitDepth: %u", (uint)inputStream->format.fBitDepth);
-	IOLog("    bitWidth: %u", (uint)inputStream->format.fBitWidth);
-	IOLog("    \n");
-	IOLog("    output -- numChannels: %u", (uint)inputStream->format.fNumChannels);
-	IOLog("    bitDepth: %u", (uint)inputStream->format.fBitDepth);
-	IOLog("    bitWidth: %u", (uint)inputStream->format.fBitWidth);
-	IOLog("    \n");
-#endif
-	
-#if 0
-	IOLog("INPUT: firstSampleFrame: %u   numSampleFrames: %u \n", (uint)firstSampleFrame, (uint)numSampleFrames);
-#endif
-	mLastValidSampleFrame = firstSampleFrame+numSampleFrames;
-
-// TODO: where is the sampleFrame wrapped?
-// TODO: try to put a mutex around reading and writing
-// TODO: why is the reading always trailing by at least 512 frames? (when 512 is the input framesize)?
-	
-	if (device->mMuteIn[0]) {
-		memset((UInt8*)mThruBuffer + byteOffset, 0, numBytes);
-	}
-	else {
-		memcpy((UInt8*)mThruBuffer + byteOffset, (UInt8 *)mixBuf + byteOffset, numBytes);
-		
-		float masterGain = device->mGain[0] / ((float)REACDevice::kGainMax);
-		float masterVolume = device->mVolume[0] / ((float)REACDevice::kVolumeMax);
-		
-		for (UInt32 channel = 0; channel < channelCount; channel++) {
-			SInt32	channelMute = device->mMuteIn[channel+1];
-			float	channelGain = device->mGain[channel+1] / ((float)REACDevice::kGainMax);
-			float	channelVolume = device->mVolume[channel+1] / ((float)REACDevice::kVolumeMax);
-			float	adjustment = masterVolume * channelVolume * masterGain * channelGain;
-			
-			for (UInt32 channelBufferIterator = 0; channelBufferIterator < numSampleFrames; channelBufferIterator++) {
-				if (channelMute)
-					mThruBuffer[offset + channelBufferIterator*channelCount + channel] = 0;
-				else
-					mThruBuffer[offset + channelBufferIterator*channelCount + channel] *= adjustment;
-			}
-		}
-	}
-	return kIOReturnSuccess;
-}
-
-
-// This is called when client apps need input audio.  Here we give them saved audio from the clip routine.
-
-IOReturn REACAudioEngine::convertInputSamples(const void *sampleBuf, void *destBuf, UInt32 firstSampleFrame, UInt32 numSampleFrames, const IOAudioStreamFormat *streamFormat, IOAudioStream *audioStream)
-{
-    UInt32				frameSize = streamFormat->fNumChannels * sizeof(float);
-    UInt32				offset = firstSampleFrame * frameSize;
-	REACDevice*	device = (REACDevice*)audioDevice;
-
-#if 0
-	//IOLog("REACAudioEngine[%p]::convertInputSamples() -- channelCount:%u \n", this, (uint)streamFormat->fNumChannels);
-	IOLog("OUTPUT: firstSampleFrame: %u   numSampleFrames: %u \n", (uint)firstSampleFrame, (uint)numSampleFrames);
-	IOLog("    mLastValidSampleFrame: %u  (diff: %ld)   \n", (uint)mLastValidSampleFrame, long(mLastValidSampleFrame) - long(firstSampleFrame+numSampleFrames));
-#endif 
-	
-    if (device->mMuteOut[0])
-        memset((UInt8*)destBuf, 0, numSampleFrames * frameSize);
-    else
-        memcpy((UInt8*)destBuf, (UInt8*)mThruBuffer + offset, numSampleFrames * frameSize);
-	
-    return kIOReturnSuccess;
-}
-*/
-#endif
