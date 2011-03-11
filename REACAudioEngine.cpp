@@ -60,7 +60,6 @@ Done:
 
 
 bool REACAudioEngine::initHardware(IOService *provider) {
-    return false; // TODO Debug
     
     bool result = false;
     IOAudioSampleRate initialSampleRate;
@@ -69,6 +68,12 @@ bool REACAudioEngine::initHardware(IOService *provider) {
     //IOLog("REACAudioEngine[%p]::initHardware(%p)\n", this, provider);
     
     duringHardwareInit = TRUE;
+    
+    if (!initControls()) {
+        goto Done;
+    }
+    
+    goto Done; // TODO Debug
     
     if (!super::initHardware(provider)) {
         goto Done;
@@ -310,41 +315,6 @@ IOReturn REACAudioEngine::performFormatChange(IOAudioStream *audioStream, const 
     return kIOReturnSuccess;
 }
 
-
-void REACAudioEngine::ourTimerFired(OSObject *target, IOTimerEventSource *sender)
-{
-    if (target) {
-        REACAudioEngine  *audioEngine = OSDynamicCast(REACAudioEngine, target);
-        UInt64            thisTimeNS;
-        uint64_t          time;
-        SInt64            diff;
-        
-        if (audioEngine) {
-            // make sure we have a client, and thus new data so we don't keep on 
-            // just looping around the last client's last buffer!    
-            IOAudioStream *outStream = audioEngine->getAudioStream(kIOAudioStreamDirectionOutput, 1);
-            if (outStream->numClients == 0) {
-                // it has, so clean the buffer 
-                // memset((UInt8*)audioEngine->mThruBuffer, 0, audioEngine->mBufferSize);
-            }
-                    
-            audioEngine->currentBlock++;
-            if (audioEngine->currentBlock >= audioEngine->numBlocks) {
-                audioEngine->currentBlock = 0;
-                audioEngine->takeTimeStamp();
-            }
-            
-            // calculate next time to fire, by taking the time and comparing it to the time we requested.                                 
-            clock_get_uptime(&time);
-            absolutetime_to_nanoseconds(time, &thisTimeNS);
-            // this next calculation must be signed or we will introduce distortion after only a couple of vectors
-            diff = ((SInt64)audioEngine->nextTime - (SInt64)thisTimeNS);
-            sender->setTimeout(audioEngine->blockTimeoutNS + diff);
-            audioEngine->nextTime += audioEngine->blockTimeoutNS;
-        }
-    }
-}
-
 void REACAudioEngine::gotSamples(int numSamples, UInt8 *samples) {
     if (NULL == mInBuffer) {
         // This should never happen. But better complain than crash the computer I guess
@@ -394,4 +364,187 @@ void REACAudioEngine::gotSamples(int numSamples, UInt8 *samples) {
         currentBlock = 0;
         takeTimeStamp();
     }
+}
+
+
+void REACAudioEngine::ourTimerFired(OSObject *target, IOTimerEventSource *sender)
+{
+    if (target) {
+        REACAudioEngine  *audioEngine = OSDynamicCast(REACAudioEngine, target);
+        UInt64            thisTimeNS;
+        uint64_t          time;
+        SInt64            diff;
+        
+        if (audioEngine) {
+            // make sure we have a client, and thus new data so we don't keep on 
+            // just looping around the last client's last buffer!    
+            IOAudioStream *outStream = audioEngine->getAudioStream(kIOAudioStreamDirectionOutput, 1);
+            if (outStream->numClients == 0) {
+                // it has, so clean the buffer 
+                // memset((UInt8*)audioEngine->mThruBuffer, 0, audioEngine->mBufferSize);
+            }
+            
+            audioEngine->currentBlock++;
+            if (audioEngine->currentBlock >= audioEngine->numBlocks) {
+                audioEngine->currentBlock = 0;
+                audioEngine->takeTimeStamp();
+            }
+            
+            // calculate next time to fire, by taking the time and comparing it to the time we requested.                                 
+            clock_get_uptime(&time);
+            absolutetime_to_nanoseconds(time, &thisTimeNS);
+            // this next calculation must be signed or we will introduce distortion after only a couple of vectors
+            diff = ((SInt64)audioEngine->nextTime - (SInt64)thisTimeNS);
+            sender->setTimeout(audioEngine->blockTimeoutNS + diff);
+            audioEngine->nextTime += audioEngine->blockTimeoutNS;
+        }
+    }
+}
+
+
+
+
+#define addControl(control, handler) \
+    if (!control) { \
+        IOLog("REACAudioEngine::initControls(): Failed to add control.\n"); \
+        return false; \
+    } \
+    control->setValueChangeHandler(handler, this); \
+    addDefaultAudioControl(control); \
+    control->release();
+
+bool REACAudioEngine::initControls() {
+    IOAudioControl*    control = NULL;
+    
+    for (UInt32 channel=0; channel <= 16; channel++) {
+        mVolume[channel] = mGain[channel] = 65535;
+        mMuteOut[channel] = mMuteIn[channel] = false;
+    }
+    
+    const char *channelNameMap[17] = {    kIOAudioControlChannelNameAll,
+        kIOAudioControlChannelNameLeft,
+        kIOAudioControlChannelNameRight,
+        kIOAudioControlChannelNameCenter,
+        kIOAudioControlChannelNameLeftRear,
+        kIOAudioControlChannelNameRightRear,
+        kIOAudioControlChannelNameSub };
+    
+    for (UInt32 channel=7; channel <= 16; channel++)
+        channelNameMap[channel] = "Unknown Channel";
+    
+    for (unsigned channel=0; channel <= 16; channel++) {
+        
+        // Create an output volume control for each channel with an int range from 0 to 65535
+        // and a db range from -72 to 0
+        // Once each control is added to the audio engine, they should be released
+        // so that when the audio engine is done with them, they get freed properly
+        control = IOAudioLevelControl::createVolumeControl(REACAudioEngine::kVolumeMax,         // Initial value
+                                                           0,                                   // min value
+                                                           REACAudioEngine::kVolumeMax,         // max value
+                                                           (-72 << 16) + (32768),               // -72 in IOFixed (16.16)
+                                                           0,                                   // max 0.0 in IOFixed
+                                                           channel,                             // kIOAudioControlChannelIDDefaultLeft,
+                                                           channelNameMap[channel],             // kIOAudioControlChannelNameLeft,
+                                                           channel,                             // control ID - driver-defined
+                                                           kIOAudioControlUsageOutput);
+        addControl(control, (IOAudioControl::IntValueChangeHandler)volumeChangeHandler);
+        
+        // Gain control for each channel
+        control = IOAudioLevelControl::createVolumeControl(REACAudioEngine::kGainMax,           // Initial value
+                                                           0,                                   // min value
+                                                           REACAudioEngine::kGainMax,           // max value
+                                                           0,                                   // min 0.0 in IOFixed
+                                                           (72 << 16) + (32768),                // 72 in IOFixed (16.16)
+                                                           channel,                             // kIOAudioControlChannelIDDefaultLeft,
+                                                           channelNameMap[channel],             // kIOAudioControlChannelNameLeft,
+                                                           channel,                             // control ID - driver-defined
+                                                           kIOAudioControlUsageInput);
+        addControl(control, (IOAudioControl::IntValueChangeHandler)gainChangeHandler);
+    }
+    
+    // Create an output mute control
+    control = IOAudioToggleControl::createMuteControl(false,                                    // initial state - unmuted
+                                                      kIOAudioControlChannelIDAll,              // Affects all channels
+                                                      kIOAudioControlChannelNameAll,
+                                                      0,                                        // control ID - driver-defined
+                                                      kIOAudioControlUsageOutput);
+    addControl(control, (IOAudioControl::IntValueChangeHandler)outputMuteChangeHandler);
+    
+    // Create an input mute control
+    control = IOAudioToggleControl::createMuteControl(false,                                    // initial state - unmuted
+                                                      kIOAudioControlChannelIDAll,              // Affects all channels
+                                                      kIOAudioControlChannelNameAll,
+                                                      0,                                        // control ID - driver-defined
+                                                      kIOAudioControlUsageInput);
+    addControl(control, (IOAudioControl::IntValueChangeHandler)inputMuteChangeHandler);
+    
+    return true;
+}
+
+
+IOReturn REACAudioEngine::volumeChangeHandler(IOService *target, IOAudioControl *volumeControl, SInt32 oldValue, SInt32 newValue) {
+    IOReturn            result = kIOReturnBadArgument;
+    REACAudioEngine    *audioEngine = (REACAudioEngine *)target;
+    
+    if (audioEngine)
+        result = audioEngine->volumeChanged(volumeControl, oldValue, newValue);
+    return result;
+}
+
+
+IOReturn REACAudioEngine::volumeChanged(IOAudioControl *volumeControl, SInt32 oldValue, SInt32 newValue) {
+    if (volumeControl)
+        mVolume[volumeControl->getChannelID()] = newValue;
+    return kIOReturnSuccess;
+}
+
+
+IOReturn REACAudioEngine::outputMuteChangeHandler(IOService *target, IOAudioControl *muteControl, SInt32 oldValue, SInt32 newValue) {
+    IOReturn          result = kIOReturnBadArgument;
+    REACAudioEngine  *audioEngine = (REACAudioEngine *)target;
+    
+    if (audioEngine)
+        result = audioEngine->outputMuteChanged(muteControl, oldValue, newValue);
+    return result;
+}
+
+
+IOReturn REACAudioEngine::outputMuteChanged(IOAudioControl *muteControl, SInt32 oldValue, SInt32 newValue) {
+    if (muteControl)
+        mMuteOut[muteControl->getChannelID()] = newValue;
+    return kIOReturnSuccess;
+}
+
+
+IOReturn REACAudioEngine::gainChangeHandler(IOService *target, IOAudioControl *gainControl, SInt32 oldValue, SInt32 newValue) {
+    IOReturn            result = kIOReturnBadArgument;
+    REACAudioEngine    *audioEngine = (REACAudioEngine *)target;
+    
+    if (audioEngine)
+        result = audioEngine->gainChanged(gainControl, oldValue, newValue);
+    return result;
+}
+
+
+IOReturn REACAudioEngine::gainChanged(IOAudioControl *gainControl, SInt32 oldValue, SInt32 newValue) {
+    if (gainControl)
+        mGain[gainControl->getChannelID()] = newValue;
+    return kIOReturnSuccess;
+}
+
+
+IOReturn REACAudioEngine::inputMuteChangeHandler(IOService *target, IOAudioControl *muteControl, SInt32 oldValue, SInt32 newValue) {
+    IOReturn            result = kIOReturnBadArgument;
+    REACAudioEngine    *audioEngine = (REACAudioEngine*)target;
+    
+    if (audioEngine)
+        result = audioEngine->inputMuteChanged(muteControl, oldValue, newValue);
+    return result;
+}
+
+
+IOReturn REACAudioEngine::inputMuteChanged(IOAudioControl *muteControl, SInt32 oldValue, SInt32 newValue) {
+    if (muteControl)
+        mMuteIn[muteControl->getChannelID()] = newValue;
+    return kIOReturnSuccess;
 }

@@ -34,11 +34,6 @@ class REACDevice : public IOAudioDevice
 	// instance members
     OSArray* protocols;
 
-	SInt32 mVolume[17];
-    SInt32 mMuteOut[17];
-    SInt32 mMuteIn[17];
-    SInt32 mGain[17];
-
 	
 	// methods
 	
@@ -53,20 +48,6 @@ class REACDevice : public IOAudioDevice
     virtual IOReturn performPowerStateChange(IOAudioDevicePowerState oldPowerState, 
                                              IOAudioDevicePowerState newPowerState,
                                              UInt32 *microsecondsUntilComplete);
-    
-    virtual bool initControls(REACAudioEngine *audioEngine);
-    
-    static  IOReturn volumeChangeHandler(IOService *target, IOAudioControl *volumeControl, SInt32 oldValue, SInt32 newValue);
-    virtual IOReturn volumeChanged(IOAudioControl *volumeControl, SInt32 oldValue, SInt32 newValue);
-    
-    static  IOReturn outputMuteChangeHandler(IOService *target, IOAudioControl *muteControl, SInt32 oldValue, SInt32 newValue);
-    virtual IOReturn outputMuteChanged(IOAudioControl *muteControl, SInt32 oldValue, SInt32 newValue);
-
-    static  IOReturn gainChangeHandler(IOService *target, IOAudioControl *gainControl, SInt32 oldValue, SInt32 newValue);
-    virtual IOReturn gainChanged(IOAudioControl *gainControl, SInt32 oldValue, SInt32 newValue);
-    
-    static  IOReturn inputMuteChangeHandler(IOService *target, IOAudioControl *muteControl, SInt32 oldValue, SInt32 newValue);
-    virtual IOReturn inputMuteChanged(IOAudioControl *muteControl, SInt32 oldValue, SInt32 newValue);
     
 };
 

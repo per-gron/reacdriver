@@ -28,6 +28,11 @@ class REACAudioEngine : public IOAudioEngine
 
     UInt32              mLastValidSampleFrame;
     
+	SInt32              mVolume[17];
+    SInt32              mMuteOut[17];
+    SInt32              mMuteIn[17];
+    SInt32              mGain[17];
+    
     // FIXME for REAC_MASTER: IOTimerEventSource *timerEventSource;
     
     UInt32              blockSize;                // In sample frames -- fixed, as defined in the Info.plist (e.g. 8192)
@@ -58,14 +63,34 @@ public:
     
     virtual UInt32 getCurrentSampleFrame();
     
-    virtual IOReturn performFormatChange(IOAudioStream *audioStream, const IOAudioStreamFormat *newFormat, const IOAudioSampleRate *newSampleRate);
+    virtual IOReturn performFormatChange(IOAudioStream *audioStream, const IOAudioStreamFormat *newFormat,
+                                         const IOAudioSampleRate *newSampleRate);
 
-    virtual IOReturn clipOutputSamples(const void *mixBuf, void *sampleBuf, UInt32 firstSampleFrame, UInt32 numSampleFrames, const IOAudioStreamFormat *streamFormat, IOAudioStream *audioStream);
-    virtual IOReturn convertInputSamples(const void *sampleBuf, void *destBuf, UInt32 firstSampleFrame, UInt32 numSampleFrames, const IOAudioStreamFormat *streamFormat, IOAudioStream *audioStream);
-    
-    static void ourTimerFired(OSObject *target, IOTimerEventSource *sender);
+    virtual IOReturn clipOutputSamples(const void *mixBuf, void *sampleBuf, UInt32 firstSampleFrame,
+                                       UInt32 numSampleFrames, const IOAudioStreamFormat *streamFormat,
+                                       IOAudioStream *audioStream);
+    virtual IOReturn convertInputSamples(const void *sampleBuf, void *destBuf, UInt32 firstSampleFrame,
+                                         UInt32 numSampleFrames, const IOAudioStreamFormat *streamFormat,
+                                         IOAudioStream *audioStream);
     
     void gotSamples(int numSamples, UInt8 *samples);
+    
+protected:
+    static void ourTimerFired(OSObject *target, IOTimerEventSource *sender);
+    
+    virtual bool initControls();
+    
+    static  IOReturn volumeChangeHandler(IOService *target, IOAudioControl *volumeControl, SInt32 oldValue, SInt32 newValue);
+    virtual IOReturn volumeChanged(IOAudioControl *volumeControl, SInt32 oldValue, SInt32 newValue);
+    
+    static  IOReturn outputMuteChangeHandler(IOService *target, IOAudioControl *muteControl, SInt32 oldValue, SInt32 newValue);
+    virtual IOReturn outputMuteChanged(IOAudioControl *muteControl, SInt32 oldValue, SInt32 newValue);
+    
+    static  IOReturn gainChangeHandler(IOService *target, IOAudioControl *gainControl, SInt32 oldValue, SInt32 newValue);
+    virtual IOReturn gainChanged(IOAudioControl *gainControl, SInt32 oldValue, SInt32 newValue);
+    
+    static  IOReturn inputMuteChangeHandler(IOService *target, IOAudioControl *muteControl, SInt32 oldValue, SInt32 newValue);
+    virtual IOReturn inputMuteChanged(IOAudioControl *muteControl, SInt32 oldValue, SInt32 newValue);
     
 };
 
