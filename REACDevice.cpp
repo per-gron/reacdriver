@@ -32,6 +32,7 @@ bool REACDevice::init(OSDictionary *properties) {
     if (NULL == protocols) {
         return false;
     }
+    
     return super::init(properties);
 }
 
@@ -68,6 +69,7 @@ void REACDevice::free() {
     if (NULL != protocols) {
         protocols->release();
     }
+    
     super::free();
 }
 
@@ -103,7 +105,8 @@ bool REACDevice::createProtocolListeners() {
             goto Next;
         }
         
-        protocol = REACProtocol::withInterface(interface,
+        protocol = REACProtocol::withInterface(getWorkLoop(),
+                                               interface,
                                                REACProtocol::REAC_SPLIT,
                                                &REACDevice::connectionCallback,
                                                &REACDevice::samplesCallback,
@@ -217,7 +220,6 @@ REACAudioEngine* REACDevice::createAudioEngine(REACProtocol* proto)
         IOLog("REACDevice[%p]::createAudioEngine() - Error: Failed to activate audio engine.\n", this);
         audioEngine->release();
         audioEngine = NULL;
-        deactivateAllAudioEngines();
         goto Done;
     }
     

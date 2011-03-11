@@ -11,6 +11,7 @@
 #define _REACPROTOCOL_H
 
 #include <IOKit/audio/IOAudioDevice.h>
+#include <IOKit/IOCommandGate.h>
 
 #include <libkern/OSMalloc.h>
 #include <net/kpi_interface.h>
@@ -92,12 +93,12 @@ public:
         REAC_STREAM_FROM_SPLIT = 0xeace
     };
     
-    virtual bool initWithInterface(ifnet_t interface, REACMode mode,
+    virtual bool initWithInterface(IOWorkLoop* workLoop, ifnet_t interface, REACMode mode,
                                    reac_connection_callback_t connectionCallback,
                                    reac_samples_callback_t samplesCallback,
                                    void* cookieA,
                                    void* cookieB);
-    static REACProtocol* withInterface(ifnet_t interface, REACMode mode,
+    static REACProtocol* withInterface(IOWorkLoop* workLoop, ifnet_t interface, REACMode mode,
                                        reac_connection_callback_t connectionCallback,
                                        reac_samples_callback_t samplesCallback,
                                        void* cookieA,
@@ -124,6 +125,9 @@ public:
     REACMode getMode() const;
 
 protected:
+    IOWorkLoop         *workLoop;
+    IOCommandGate      *filterCommandGate;
+    
     ifnet_t             interface;
     REACMode            mode;
     interface_filter_t  filterRef;
@@ -138,6 +142,8 @@ protected:
     reac_connection_callback_t connectionCallback;
     void* cookieA;
     void* cookieB;
+    
+    static void filterCommandGateMsg(OSObject *target, void* type, void* protocol, void* deviceInfo, void* audioEnginePointer);
     
     static errno_t filterInputFunc(void *cookie,
                                    ifnet_t interface, 

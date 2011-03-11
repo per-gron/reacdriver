@@ -16,7 +16,8 @@
 #define REAC_PROTOCOL_KEY               "REACProtocol"
 #define BLOCK_SIZE_KEY                  "BlockSize"
 #define NUM_BLOCKS_KEY                  "NumBlocks"
-#define FORMAT_KEY                      "Format"
+#define IN_FORMAT_KEY                   "InFormat"
+#define OUT_FORMAT_KEY                  "OutFormat"
 #define SAMPLE_RATES_KEY				"SampleRates"
 #define SEPARATE_STREAM_BUFFERS_KEY     "SeparateStreamBuffers"
 #define SEPARATE_INPUT_BUFFERS_KEY      "SeparateInputBuffers"
@@ -32,7 +33,7 @@ class REACDevice : public IOAudioDevice
     friend class REACAudioEngine;
 	
 	// instance members
-    OSArray* protocols;
+    OSArray *protocols;
 
 	
 	// methods

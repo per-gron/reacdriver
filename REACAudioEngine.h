@@ -18,7 +18,7 @@ class REACAudioEngine : public IOAudioEngine
     
     // instance members
     REACProtocol       *protocol;
-    REACWeakReference  *audioControlWeakSelfReference;
+    REACWeakReference  *audioControlWeakSelfReference; // TODO Remove this. It doesn't help.
     
     UInt32              mInBufferSize;
     void               *mInBuffer;

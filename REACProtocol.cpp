@@ -18,12 +18,25 @@
 OSDefineMetaClassAndStructors(REACProtocol, OSObject)
 
 
-bool REACProtocol::initWithInterface(ifnet_t interface_, REACMode mode_,
+bool REACProtocol::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_, REACMode mode_,
                                      reac_connection_callback_t connectionCallback_,
                                      reac_samples_callback_t samplesCallback_,
                                      void* cookieA_,
                                      void* cookieB_) {
     OSMallocTag mt = OSMalloc_Tagalloc("REAC packet memory", OSMT_DEFAULT);
+    
+    if (NULL == workLoop_) {
+        goto Fail;
+    }
+    workLoop = workLoop_;
+    workLoop->retain();
+    filterCommandGate = IOCommandGate::commandGate(this, (IOCommandGate::Action)filterCommandGateMsg);
+    if (NULL == filterCommandGate ||
+        (workLoop->addEventSource(filterCommandGate) != kIOReturnSuccess) ) {
+        IOLog("REACProtocol::initWithInterface() - Error: Can't create or add commandGate\n");
+        goto Fail;
+    }
+    
     
     // Hack: Pretend to be connected immediately
     deviceInfo = (REACDeviceInfo*) OSMalloc(sizeof(REACDeviceInfo), mt);
@@ -58,18 +71,26 @@ Fail:
     if (NULL != deviceInfo) {
         OSFree(deviceInfo, sizeof(REACDeviceInfo), mt);
     }
+    if (NULL != filterCommandGate) {
+        workLoop->removeEventSource(filterCommandGate);
+        filterCommandGate->release();
+        filterCommandGate = NULL;
+    }
+    if (NULL != workLoop) {
+        workLoop->release();
+    }
     OSMalloc_Tagfree(mt);
     return false;
 }
 
-REACProtocol* REACProtocol::withInterface(ifnet_t interface, REACMode mode,
+REACProtocol* REACProtocol::withInterface(IOWorkLoop *workLoop, ifnet_t interface, REACMode mode,
                                           reac_connection_callback_t connectionCallback,
                                           reac_samples_callback_t samplesCallback,
                                           void* cookieA,
                                           void* cookieB) {
     REACProtocol* p = new REACProtocol;
     if (NULL == p) return NULL;
-    bool result = p->initWithInterface(interface, mode, connectionCallback, samplesCallback, cookieA, cookieB);
+    bool result = p->initWithInterface(workLoop, interface, mode, connectionCallback, samplesCallback, cookieA, cookieB);
     if (!result) {
         p->release();
         return NULL;
@@ -82,6 +103,16 @@ void REACProtocol::free() {
     
     if (NULL != deviceInfo) {
         OSFree(deviceInfo, sizeof(REACDeviceInfo), reacMallocTag);
+    }
+    
+    if (NULL != filterCommandGate) {
+        workLoop->removeEventSource(filterCommandGate);
+        filterCommandGate->release();
+        filterCommandGate = NULL;
+    }
+    
+    if (NULL != workLoop) {
+        workLoop->release();
     }
     
     ifnet_release(interface);
@@ -154,34 +185,15 @@ REACProtocol::REACMode REACProtocol::getMode() const {
     return mode;
 }
 
-
-errno_t REACProtocol::filterInputFunc(void *cookie,
-                                      ifnet_t interface, 
-                                      protocol_family_t protocol,
-                                      mbuf_t *data,
-                                      char **frame_ptr) {
-    REACProtocol *proto = (REACProtocol*) cookie;
+void REACProtocol::filterCommandGateMsg(OSObject *target, void *buf, void *packetLength, void*, void*) {
+    REACProtocol *proto = (REACProtocol *)target;
+    UInt32 len = *((UInt32 *)packetLength);
     int samplesSize = REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*proto->deviceInfo->in_channels;
-    void *buf = NULL;
     REACPacketHeader *packetHeader = NULL;
     
-    char *header = *frame_ptr;
-    if (!(0x88 == ((UInt8*)header)[12] && 0x19 == ((UInt8*)header)[13])) {
-        // This is not a REAC packet. Ignore.
-        return 0; // Continue normal processing of the package.
-    }
-    
-    UInt32 len = mbuf_len(*data);
-    
     if (sizeof(REACPacketHeader)+samplesSize+sizeof(UInt16) != len) {
-        IOLog("REACProtocol[%p]::filterInputFunc(): Got packet of invalid length\n", cookie);
+        IOLog("REACProtocol[%p]::filterInputFunc(): Got packet of invalid length\n", proto);
     }
-    
-    buf = OSMalloc(len, proto->reacMallocTag);
-    if (NULL == buf) {
-        return EINPROGRESS; // Skip the processing of the package.
-    }
-    mbuf_copydata(*data, 0, len, buf);
     
     if (REAC_ENDING != (*((UInt16*)(((char*)buf)+sizeof(REACPacketHeader)+samplesSize)))) {
         // Incorrect ending. Not a REAC packet?
@@ -193,7 +205,7 @@ errno_t REACProtocol::filterInputFunc(void *cookie,
     if (proto->connected /* This prunes a lost packet message when connecting */ && proto->lastCounter+1 != packetHeader->counter) {
         if (!(65535 == proto->lastCounter && 0 == packetHeader->counter)) {
             IOLog("REACProtocol[%p]::filterInputFunc(): Lost packet [%d %d]\n",
-                  cookie, proto->lastCounter, packetHeader->counter);
+                  proto, proto->lastCounter, packetHeader->counter);
         }
     }
     
@@ -219,6 +231,32 @@ Done:
     if (NULL != buf) {
         OSFree(buf, len, proto->reacMallocTag);
     }
+}
+
+
+errno_t REACProtocol::filterInputFunc(void *cookie,
+                                      ifnet_t interface, 
+                                      protocol_family_t protocol,
+                                      mbuf_t *data,
+                                      char **frame_ptr) {
+    REACProtocol *proto = (REACProtocol *)cookie;
+    void *buf = NULL;
+    
+    char *header = *frame_ptr;
+    if (!(0x88 == ((UInt8*)header)[12] && 0x19 == ((UInt8*)header)[13])) {
+        // This is not a REAC packet. Ignore.
+        return 0; // Continue normal processing of the package.
+    }
+    
+    UInt32 len = mbuf_len(*data);
+    
+    buf = OSMalloc(len, proto->reacMallocTag);
+    if (NULL == buf) {
+        return EINPROGRESS; // Skip the processing of the package.
+    }
+    mbuf_copydata(*data, 0, len, buf);
+    
+    proto->filterCommandGate->runCommand(buf, &len);
     
     return EINPROGRESS; // Skip the processing of the package.
 }

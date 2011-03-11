@@ -49,6 +49,7 @@ bool REACAudioEngine::init(REACProtocol* proto, OSDictionary *properties) {
     number = OSDynamicCast(OSNumber, getProperty(BLOCK_SIZE_KEY));
     blockSize = (number ? number->unsigned32BitValue() : BLOCK_SIZE);
     
+    mInBuffer = mOutBuffer = NULL;
     inputStream = outputStream = NULL;
     duringHardwareInit = FALSE;
     mLastValidSampleFrame = 0;
@@ -60,7 +61,6 @@ Done:
 
 
 bool REACAudioEngine::initHardware(IOService *provider) {
-    
     bool result = false;
     IOAudioSampleRate initialSampleRate;
     IOWorkLoop *wl;
@@ -76,8 +76,6 @@ bool REACAudioEngine::initHardware(IOService *provider) {
     if (!super::initHardware(provider)) {
         goto Done;
     }
-    
-    goto Done; // TODO Debug
     
     initialSampleRate.whole = 0;
     initialSampleRate.fraction = 0;
@@ -121,75 +119,74 @@ Done:
 
  
 bool REACAudioEngine::createAudioStreams(IOAudioSampleRate *sampleRate) {
-    return false; // TODO Debug
-    
     bool            result = false;
     OSString       *desc;
     
     UInt32              numInChannels = protocol->getDeviceInfo()->in_channels;
-    UInt32              numOutChannels = protocol->getDeviceInfo()->in_channels;
+    UInt32              numOutChannels = protocol->getDeviceInfo()->out_channels;
     UInt32              bufferSizePerChannel;
-    OSDictionary       *formatDict;
+    OSDictionary       *inFormatDict;
+    OSDictionary       *outFormatDict;
     
     IOAudioStreamFormat inFormat;
     IOAudioStreamFormat outFormat;
+    
+    sampleRate->whole = REAC_SAMPLE_RATE;
+    sampleRate->fraction = 0;
     
     desc = OSDynamicCast(OSString, getProperty(DESCRIPTION_KEY));
     if (desc) {
         setDescription(desc->getCStringNoCopy());
     }
     
-    formatDict = OSDynamicCast(OSDictionary, getProperty(FORMAT_KEY));
-    if (NULL == formatDict) {
-        IOLog("REAC: formatDict is NULL\n");
-        goto Error;
-    }
-    
     inputStream = new IOAudioStream;
-    if (inputStream == NULL) {
-        IOLog("REAC: Could not create new input IOAudioStream\n");
-        goto Error;
-    }
-    
     outputStream = new IOAudioStream;
-    if (outputStream == NULL) {
-        IOLog("REAC: Could not create new output IOAudioStream\n");
+    if (NULL == inputStream || NULL == outputStream) {
+        IOLog("REAC: Could not create IOAudioStreams\n");
         goto Error;
     }
-    
+        
     if (!inputStream->initWithAudioEngine(this, kIOAudioStreamDirectionInput, 1 /* Starting channel ID */, "REAC Input Stream") ||
         !outputStream->initWithAudioEngine(this, kIOAudioStreamDirectionOutput, 1 /* Starting channel ID */, "REAC Output Stream")) {
         IOLog("REAC: Could not init one of the streams with audio engine. \n");
         goto Error;
     }
     
-    if (IOAudioStream::createFormatFromDictionary(formatDict, &inFormat) == NULL ||
-        IOAudioStream::createFormatFromDictionary(formatDict, &outFormat) == NULL) {
+    inFormatDict = OSDynamicCast(OSDictionary, getProperty(IN_FORMAT_KEY));
+    outFormatDict = OSDynamicCast(OSDictionary, getProperty(OUT_FORMAT_KEY));
+    if (NULL == inFormatDict || NULL == outFormatDict) {
+        IOLog("REAC: inFormatDict or outFormatDict is NULL\n");
+        goto Error;
+    }
+    
+    if (IOAudioStream::createFormatFromDictionary(inFormatDict, &inFormat) == NULL ||
+        IOAudioStream::createFormatFromDictionary(outFormatDict, &outFormat) == NULL) {
         IOLog("REAC: Error in createFormatFromDictionary()\n");
         goto Error;
     }
     
-    inFormat.fBitWidth = REAC_RESOLUTION * 8;
-    outFormat.fBitWidth = REAC_RESOLUTION * 8;
-    
-    sampleRate->whole = REAC_SAMPLE_RATE;
-    sampleRate->fraction = 0;
-    
     inputStream->addAvailableFormat(&inFormat, sampleRate, sampleRate);
+    inputStream->setFormat(&inFormat);
+    
     outputStream->addAvailableFormat(&outFormat, sampleRate, sampleRate);
+    outputStream->setFormat(&outFormat);
     
     bufferSizePerChannel = blockSize * numBlocks * REAC_RESOLUTION;
     mInBufferSize = bufferSizePerChannel * numInChannels;
     mOutBufferSize = bufferSizePerChannel * numOutChannels;
     
     if (mInBuffer == NULL) {
+        IOLog("REAC: Allocating input buffer - %d bytes.\n", (int) mInBufferSize);
+        return true; // TODO Debug
         mInBuffer = (void *)IOMalloc(mInBufferSize);
         if (NULL == mInBuffer) {
-            IOLog("REAC: Error allocating input buffer - %lu bytes.\n", (unsigned long)mInBufferSize);
+            IOLog("REAC: Error allocating input buffer - %d bytes.\n", (int) mInBufferSize);
             goto Error;
         }
     }
+    
     if (mOutBuffer == NULL) {
+        IOLog("REAC: Allocating output buffer - %lu bytes.\n", (unsigned long)mOutBufferSize);
         mOutBuffer = (void *)IOMalloc(mOutBufferSize);
         if (NULL == mOutBuffer) {
             IOLog("REAC: Error allocating output buffer - %lu bytes.\n", (unsigned long)mOutBufferSize);
@@ -197,12 +194,10 @@ bool REACAudioEngine::createAudioStreams(IOAudioSampleRate *sampleRate) {
         }
     }
     
-    inputStream->setFormat(&inFormat);
     inputStream->setSampleBuffer(mInBuffer, mInBufferSize);
     addAudioStream(inputStream);
     inputStream->release();
     
-    outputStream->setFormat(&outFormat);
     outputStream->setSampleBuffer(mOutBuffer, mOutBufferSize);       
     addAudioStream(outputStream);
     outputStream->release();
@@ -331,7 +326,7 @@ IOReturn REACAudioEngine::performFormatChange(IOAudioStream *audioStream, const 
 void REACAudioEngine::gotSamples(int numSamples, UInt8 *samples) {
     if (NULL == mInBuffer) {
         // This should never happen. But better complain than crash the computer I guess
-        IOLog("REACAudioEngine::gotSamples(): Internal error.\n");
+        // IOLog("REACAudioEngine::gotSamples(): Internal error.\n"); // TODO Debug
         return;
     }
     
