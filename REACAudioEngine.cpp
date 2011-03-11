@@ -226,18 +226,6 @@ Done:
 void REACAudioEngine::free() {
     //IOLog("REACAudioEngine[%p]::free()\n", this);
     
-    // This whole is here because of a strange problem with IOAudioControl not
-    // always releasing its valueChangeTarget (I've seen it when initHardware
-    // fails), which leads to memory leaks.
-    if (NULL != audioControlWeakSelfReference) {
-        removeAllDefaultAudioControls();
-        while (audioControlWeakSelfReference->getRetainCount() > 1) {
-            audioControlWeakSelfReference->release();
-        }
-        audioControlWeakSelfReference->release();
-        audioControlWeakSelfReference = NULL;
-    }
-    
     if (mInBuffer) {
         IOFree(mInBuffer, mInBufferSize);
         mInBuffer = NULL;
@@ -416,7 +404,7 @@ void REACAudioEngine::ourTimerFired(OSObject *target, IOTimerEventSource *sender
         IOLog("REACAudioEngine::initControls(): Failed to add control.\n"); \
         goto Done; \
     } \
-    control->setValueChangeHandler(handler, audioControlWeakSelfReference); \
+    control->setValueChangeHandler(handler, this); \
     addDefaultAudioControl(control); \
     control->release();
 
@@ -433,11 +421,6 @@ bool REACAudioEngine::initControls() {
     
     bool               result = false;
     IOAudioControl    *control = NULL;
-    
-    audioControlWeakSelfReference = REACWeakReference::withReference(this);
-    if (NULL == audioControlWeakSelfReference) {
-        goto Done;
-    }
     
     for (UInt32 channel=0; channel <= 16; channel++) {
         mVolume[channel] = mGain[channel] = 65535;
