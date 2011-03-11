@@ -15,10 +15,12 @@ class REACAudioEngine : public IOAudioEngine
 {
     OSDeclareDefaultStructors(REACAudioEngine)
     
+    // instance members
     REACProtocol       *protocol;
     
-    UInt32              mBufferSize;
+    UInt32              mInBufferSize;
     void               *mInBuffer;
+    UInt32              mOutBufferSize;
     void               *mOutBuffer;
     
     IOAudioStream      *outputStream;
@@ -39,6 +41,10 @@ class REACAudioEngine : public IOAudioEngine
     
     
 public:
+    
+	// class members
+    static const SInt32 kVolumeMax;
+    static const SInt32 kGainMax;
 
     virtual bool init(REACProtocol* proto, OSDictionary *properties);
     virtual void free();

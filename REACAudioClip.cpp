@@ -92,41 +92,64 @@ IOReturn REACAudioEngine::convertInputSamples(const void *sampleBuf, void *destB
                                               IOAudioStream *audioStream) {
     // IOLog("REACAudioEngine::convertInputSamples()\n");
     
-    UInt32 numSamplesLeft;
-    float *floatDestBuf;
-    SInt16 *inputBuf;
+    UInt32 numChannels = streamFormat->fNumChannels;
+    int resolution = streamFormat->fBitWidth/8;
+    float *floatDestBuf = (float *)destBuf;
     
-    // Start by casting the destination buffer to a float *
-    floatDestBuf = (float *)destBuf;
-    // Determine the starting point for our input conversion 
-    inputBuf = &(((SInt16 *)sampleBuf)[firstSampleFrame * streamFormat->fNumChannels]);
-    
-    // Calculate the number of actual samples to convert
-    numSamplesLeft = numSampleFrames * streamFormat->fNumChannels;
+    UInt32 numSamplesLeft = numSampleFrames * numChannels;
+    UInt8 *inputBuf = &(((UInt8 *)sampleBuf)[firstSampleFrame * numChannels * resolution]);
     
     // Loop through each sample and scale and convert them
     while (numSamplesLeft > 0) {
-        SInt16 inputSample;
+        SInt32 inputSample;
+        
+        if (numSamplesLeft < numChannels)
+            IOLog("RAE %d: %d %d %d\n", (int) numSamplesLeft, inputBuf[0], inputBuf[1], inputBuf[2]);
         
         // Fetch the SInt16 input sample
-        inputSample = *inputBuf;
+        inputSample = inputBuf[2];
+        inputSample = (inputSample << 8) | inputBuf[1];
+        inputSample = (inputSample << 8) | inputBuf[0];
         
-        // Scale that sample to a range of -1.0 to 1.0, convert to float and store in the destination buffer
-        // at the proper location
-        if (inputSample >= 0) {
-            *floatDestBuf = inputSample / 32767.0;
-        } else {
-            *floatDestBuf = inputSample / 32768.0;
-        }
+        if (inputSample & 0x800000)
+            inputSample |= ~0xffffff;
+        
+        const float Q = 1.0 / (0x7fffff + 0.5);
+        
+        *floatDestBuf = (inputSample + 0.5) * Q;
         
         // Move on to the next sample
-        ++inputBuf;
+        inputBuf += resolution;
         ++floatDestBuf;
         --numSamplesLeft;
     }
     
     return kIOReturnSuccess;
 }
+
+
+
+#if 0
+
+void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet) {
+    for (int i=0; i<record_channels; i++) {  
+        for (int j=0; j<REAC_SAMPLES_PER_PACKET; j++) {
+            if (0 == i%2) {
+                buf[i][buffer_place+j*REAC_RESOLUTION  ] = reac->samples[j][i/2][3];
+                buf[i][buffer_place+j*REAC_RESOLUTION+1] = reac->samples[j][i/2][0];
+                buf[i][buffer_place+j*REAC_RESOLUTION+2] = reac->samples[j][i/2][1];
+            }
+            else {
+                buf[i][buffer_place+j*REAC_RESOLUTION  ] = reac->samples[j][i/2][4];
+                buf[i][buffer_place+j*REAC_RESOLUTION+1] = reac->samples[j][i/2][5];
+                buf[i][buffer_place+j*REAC_RESOLUTION+2] = reac->samples[j][i/2][2];
+            }
+        }
+    }
+}
+
+
+#endif
 
 
 
@@ -172,13 +195,13 @@ IOReturn REACAudioEngine::clipOutputSamples(const void *mixBuf, void *sampleBuf,
     else {
         memcpy((UInt8*)mThruBuffer + byteOffset, (UInt8 *)mixBuf + byteOffset, numBytes);
         
-        float masterGain = device->mGain[0] / ((float)REACDevice::kGainMax);
-        float masterVolume = device->mVolume[0] / ((float)REACDevice::kVolumeMax);
+        float masterGain = device->mGain[0] / ((float)REACAudioEngine::kGainMax);
+        float masterVolume = device->mVolume[0] / ((float)REACAudioEngine::kVolumeMax);
         
         for (UInt32 channel = 0; channel < channelCount; channel++) {
             SInt32    channelMute = device->mMuteIn[channel+1];
-            float    channelGain = device->mGain[channel+1] / ((float)REACDevice::kGainMax);
-            float    channelVolume = device->mVolume[channel+1] / ((float)REACDevice::kVolumeMax);
+            float    channelGain = device->mGain[channel+1] / ((float)REACAudioEngine::kGainMax);
+            float    channelVolume = device->mVolume[channel+1] / ((float)REACAudioEngine::kVolumeMax);
             float    adjustment = masterVolume * channelVolume * masterGain * channelGain;
             
             for (UInt32 channelBufferIterator = 0; channelBufferIterator < numSampleFrames; channelBufferIterator++) {
@@ -215,27 +238,3 @@ IOReturn REACAudioEngine::convertInputSamples(const void *sampleBuf, void *destB
     return kIOReturnSuccess;
 }
 #endif
-
-
-
-#if 0
-
-void got_packet(u_char *args, const struct pcap_pkthdr *header, const u_char *packet) {
-    for (int i=0; i<record_channels; i++) {  
-        for (int j=0; j<REAC_SAMPLES_PER_PACKET; j++) {
-            if (0 == i%2) {
-                buf[i][buffer_place+j*REAC_RESOLUTION  ] = reac->samples[j][i/2][3];
-                buf[i][buffer_place+j*REAC_RESOLUTION+1] = reac->samples[j][i/2][0];
-                buf[i][buffer_place+j*REAC_RESOLUTION+2] = reac->samples[j][i/2][1];
-            }
-            else {
-                buf[i][buffer_place+j*REAC_RESOLUTION  ] = reac->samples[j][i/2][4];
-                buf[i][buffer_place+j*REAC_RESOLUTION+1] = reac->samples[j][i/2][5];
-                buf[i][buffer_place+j*REAC_RESOLUTION+2] = reac->samples[j][i/2][2];
-            }
-        }
-    }
-}
-
-
-#endif // #if 0

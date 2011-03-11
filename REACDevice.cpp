@@ -27,10 +27,6 @@
 
 OSDefineMetaClassAndStructors(REACDevice, IOAudioDevice)
 
-const SInt32 REACDevice::kVolumeMax = 65535;
-const SInt32 REACDevice::kGainMax = 65535;
-
-
 bool REACDevice::init(OSDictionary *properties) {
     protocols = OSArray::withCapacity(5);
     if (NULL == protocols) {
@@ -217,7 +213,11 @@ REACAudioEngine* REACDevice::createAudioEngine(REACProtocol* proto)
     }
     
     initControls(audioEngine);
-    activateAudioEngine(audioEngine);	// increments refcount and manages the object
+    if (!activateAudioEngine(audioEngine)) { // increments refcount and manages the object
+        audioEngine->release();
+        audioEngine = NULL;
+        goto Done;
+    }
     audioEngine->release();				// decrement refcount so object is released when the manager eventually releases it
     
 Done:
@@ -270,9 +270,9 @@ bool REACDevice::initControls(REACAudioEngine* audioEngine)
         // and a db range from -72 to 0
         // Once each control is added to the audio engine, they should be released
         // so that when the audio engine is done with them, they get freed properly
-        control = IOAudioLevelControl::createVolumeControl(REACDevice::kVolumeMax,		// Initial value
+        control = IOAudioLevelControl::createVolumeControl(REACAudioEngine::kVolumeMax,		// Initial value
                                                            0,									// min value
-                                                           REACDevice::kVolumeMax,		// max value
+                                                           REACAudioEngine::kVolumeMax,		// max value
                                                            (-72 << 16) + (32768),				// -72 in IOFixed (16.16)
                                                            0,									// max 0.0 in IOFixed
                                                            channel,								// kIOAudioControlChannelIDDefaultLeft,
@@ -282,9 +282,9 @@ bool REACDevice::initControls(REACAudioEngine* audioEngine)
         addControl(control, (IOAudioControl::IntValueChangeHandler)volumeChangeHandler);
         
         // Gain control for each channel
-        control = IOAudioLevelControl::createVolumeControl(REACDevice::kGainMax,			// Initial value
+        control = IOAudioLevelControl::createVolumeControl(REACAudioEngine::kGainMax,			// Initial value
                                                            0,									// min value
-                                                           REACDevice::kGainMax,			// max value
+                                                           REACAudioEngine::kGainMax,			// max value
                                                            0,									// min 0.0 in IOFixed
                                                            (72 << 16) + (32768),				// 72 in IOFixed (16.16)
                                                            channel,								// kIOAudioControlChannelIDDefaultLeft,

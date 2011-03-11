@@ -32,35 +32,29 @@
 			<dict>
 				<key>Description</key>
 				<string>REAC by Per</string>
-				<key>Formats</key>
-				<array>
-					<dict>
-						<key>IOAudioStreamAlignment</key>
-						<integer>1</integer>
-						<key>IOAudioStreamBitDepth</key>
-						<integer>24</integer>
-						<key>IOAudioStreamBitWidth</key>
-						<integer>24</integer>
-						<key>IOAudioStreamByteOrder</key>
-						<integer>0</integer>
-						<key>IOAudioStreamDriverTag</key>
-						<integer>0</integer>
-						<key>IOAudioStreamIsMixable</key>
-						<integer>1</integer>
-						<key>IOAudioStreamNumChannels</key>
-						<integer>40</integer>
-						<key>IOAudioStreamNumericRepresentation</key>
-						<integer>1936289396</integer>
-						<key>IOAudioStreamSampleFormat</key>
-						<integer>1819304813</integer>
-					</dict>
-				</array>
+				<key>Format</key>
+				<dict>
+					<key>IOAudioStreamAlignment</key>
+					<integer>1</integer>
+					<key>IOAudioStreamBitDepth</key>
+					<integer>24</integer>
+					<key>IOAudioStreamBitWidth</key>
+					<integer>24</integer>
+					<key>IOAudioStreamByteOrder</key>
+					<integer>0</integer>
+					<key>IOAudioStreamDriverTag</key>
+					<integer>0</integer>
+					<key>IOAudioStreamIsMixable</key>
+					<integer>1</integer>
+					<key>IOAudioStreamNumChannels</key>
+					<integer>40</integer>
+					<key>IOAudioStreamNumericRepresentation</key>
+					<integer>1936289396</integer>
+					<key>IOAudioStreamSampleFormat</key>
+					<integer>1819304813</integer>
+				</dict>
 				<key>NumBlocks</key>
 				<integer>1024</integer>
-				<key>SampleRates</key>
-				<array>
-					<integer>96000</integer>
-				</array>
 			</dict>
 			<key>CFBundleIdentifier</key>
 			<string>com.pereckerdal.driver.REAC</string>
