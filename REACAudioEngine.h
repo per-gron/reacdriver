@@ -8,6 +8,7 @@
 #include <IOKit/audio/IOAudioEngine.h>
 
 #include "REACDevice.h"
+#include "REACWeakReference.h"
 
 #define REACAudioEngine                com_pereckerdal_driver_REACAudioEngine
 
@@ -17,6 +18,7 @@ class REACAudioEngine : public IOAudioEngine
     
     // instance members
     REACProtocol       *protocol;
+    REACWeakReference  *audioControlWeakSelfReference;
     
     UInt32              mInBufferSize;
     void               *mInBuffer;

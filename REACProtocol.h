@@ -92,13 +92,11 @@ public:
         REAC_STREAM_FROM_SPLIT = 0xeace
     };
     
-protected:
     virtual bool initWithInterface(ifnet_t interface, REACMode mode,
                                    reac_connection_callback_t connectionCallback,
                                    reac_samples_callback_t samplesCallback,
                                    void* cookieA,
                                    void* cookieB);
-public:
     static REACProtocol* withInterface(ifnet_t interface, REACMode mode,
                                        reac_connection_callback_t connectionCallback,
                                        reac_samples_callback_t samplesCallback,

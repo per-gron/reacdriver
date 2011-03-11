@@ -11,6 +11,8 @@
 
 #include <IOKit/audio/IOAudioDevice.h>
 
+#define REACWeakReference                com_pereckerdal_driver_REACWeakReference
+
 class REACWeakReference : public OSObject {
     OSDeclareDefaultStructors(REACWeakReference)
     

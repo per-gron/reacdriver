@@ -29,7 +29,7 @@ bool REACAudioEngine::init(REACProtocol* proto, OSDictionary *properties) {
     bool result = false;
     OSNumber *number = NULL;
     
-    //IOLog("REACAudioEngine[%p]::init()\n", this);
+    // IOLog("REACAudioEngine[%p]::init()\n", this);
     
     if (NULL == proto) {
         goto Done;
@@ -73,11 +73,11 @@ bool REACAudioEngine::initHardware(IOService *provider) {
         goto Done;
     }
     
-    goto Done; // TODO Debug
-    
     if (!super::initHardware(provider)) {
         goto Done;
     }
+    
+    goto Done; // TODO Debug
     
     initialSampleRate.whole = 0;
     initialSampleRate.fraction = 0;
@@ -228,6 +228,18 @@ Done:
 void REACAudioEngine::free() {
     //IOLog("REACAudioEngine[%p]::free()\n", this);
     
+    // This whole is here because of a strange problem with IOAudioControl not
+    // always releasing its valueChangeTarget (I've seen it when initHardware
+    // fails), which leads to memory leaks.
+    if (NULL != audioControlWeakSelfReference) {
+        removeAllDefaultAudioControls();
+        while (audioControlWeakSelfReference->getRetainCount() > 1) {
+            audioControlWeakSelfReference->release();
+        }
+        audioControlWeakSelfReference->release();
+        audioControlWeakSelfReference = NULL;
+    }
+    
     if (mInBuffer) {
         IOFree(mInBuffer, mInBufferSize);
         mInBuffer = NULL;
@@ -236,6 +248,7 @@ void REACAudioEngine::free() {
         IOFree(mOutBuffer, mOutBufferSize);
         mOutBuffer = NULL;
     }
+    
     super::free();
 }
 
@@ -318,7 +331,7 @@ IOReturn REACAudioEngine::performFormatChange(IOAudioStream *audioStream, const 
 void REACAudioEngine::gotSamples(int numSamples, UInt8 *samples) {
     if (NULL == mInBuffer) {
         // This should never happen. But better complain than crash the computer I guess
-        IOLog("REACAudioEngine::gotSamples(): Internal error.");
+        IOLog("REACAudioEngine::gotSamples(): Internal error.\n");
         return;
     }
     
@@ -407,27 +420,35 @@ void REACAudioEngine::ourTimerFired(OSObject *target, IOTimerEventSource *sender
 #define addControl(control, handler) \
     if (!control) { \
         IOLog("REACAudioEngine::initControls(): Failed to add control.\n"); \
-        return false; \
+        goto Done; \
     } \
-    control->setValueChangeHandler(handler, this); \
+    control->setValueChangeHandler(handler, audioControlWeakSelfReference); \
     addDefaultAudioControl(control); \
     control->release();
 
 bool REACAudioEngine::initControls() {
-    IOAudioControl*    control = NULL;
-    
-    for (UInt32 channel=0; channel <= 16; channel++) {
-        mVolume[channel] = mGain[channel] = 65535;
-        mMuteOut[channel] = mMuteIn[channel] = false;
-    }
-    
-    const char *channelNameMap[17] = {    kIOAudioControlChannelNameAll,
+    const char *channelNameMap[17] = {
+        kIOAudioControlChannelNameAll,
         kIOAudioControlChannelNameLeft,
         kIOAudioControlChannelNameRight,
         kIOAudioControlChannelNameCenter,
         kIOAudioControlChannelNameLeftRear,
         kIOAudioControlChannelNameRightRear,
-        kIOAudioControlChannelNameSub };
+        kIOAudioControlChannelNameSub
+    };
+    
+    bool               result = false;
+    IOAudioControl    *control = NULL;
+    
+    audioControlWeakSelfReference = REACWeakReference::withReference(this);
+    if (NULL == audioControlWeakSelfReference) {
+        goto Done;
+    }
+    
+    for (UInt32 channel=0; channel <= 16; channel++) {
+        mVolume[channel] = mGain[channel] = 65535;
+        mMuteOut[channel] = mMuteIn[channel] = false;
+    }
     
     for (UInt32 channel=7; channel <= 16; channel++)
         channelNameMap[channel] = "Unknown Channel";
@@ -478,7 +499,10 @@ bool REACAudioEngine::initControls() {
                                                       kIOAudioControlUsageInput);
     addControl(control, (IOAudioControl::IntValueChangeHandler)inputMuteChangeHandler);
     
-    return true;
+    result = true;
+    
+Done:
+    return result;
 }
 
 

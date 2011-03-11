@@ -207,16 +207,21 @@ REACAudioEngine* REACDevice::createAudioEngine(REACProtocol* proto)
     }
     
     if (!audioEngine->init(proto, audioEngineParams)) {
+        IOLog("REACDevice[%p]::createAudioEngine() - Error: Failed to init audio engine.\n", this);
         audioEngine->release();
         audioEngine = NULL;
         goto Done;
     }
     
-    if (!activateAudioEngine(audioEngine)) { // increments refcount and manages the object
+    if (kIOReturnSuccess != activateAudioEngine(audioEngine)) { // increments refcount and manages the object
+        IOLog("REACDevice[%p]::createAudioEngine() - Error: Failed to activate audio engine.\n", this);
         audioEngine->release();
         audioEngine = NULL;
+        deactivateAllAudioEngines();
         goto Done;
     }
+    
+    
     audioEngine->release();				// decrement refcount so object is released when the manager eventually releases it
     
 Done:
