@@ -237,5 +237,6 @@ Done:
 IOReturn REACDevice::performPowerStateChange(IOAudioDevicePowerState oldPowerState, 
                                              IOAudioDevicePowerState newPowerState, 
                                              UInt32 *microsecondsUntilComplete) {
+    // TODO. And make sure to do it in a thread safe way.
     return kIOReturnSuccess;
 }

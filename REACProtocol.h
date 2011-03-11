@@ -77,7 +77,11 @@ typedef void(*reac_samples_callback_t)(REACProtocol *proto, void **cookieA, void
 typedef void(*reac_connection_callback_t)(REACProtocol *proto, void **cookieA, void **cookieB, REACDeviceInfo *device);
 
 
-// TODO Thread safety?
+// This class is not thread safe; the only functions that can be called
+// without being synchronized to the work loop are the interface filter
+// callbacks. The samplesCallback and connectionCallback callbacks are
+// guaranteed to be called from within the work loop.
+//
 // TODO Private constructor/assignment operator/destructor?
 class REACProtocol : public OSObject {
     OSDeclareDefaultStructors(REACProtocol)

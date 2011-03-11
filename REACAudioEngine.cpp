@@ -165,10 +165,16 @@ bool REACAudioEngine::createAudioStreams(IOAudioSampleRate *sampleRate) {
         goto Error;
     }
     
-    inputStream->addAvailableFormat(&inFormat, sampleRate, sampleRate);
-    inputStream->setFormat(&inFormat);
+    inFormat.fNumChannels = numInChannels;
+    outFormat.fNumChannels = numOutChannels;
     
+    inFormat.fBitDepth = REAC_RESOLUTION * 8;
+    outFormat.fBitDepth = REAC_RESOLUTION * 8;
+    
+    inputStream->addAvailableFormat(&inFormat, sampleRate, sampleRate);
     outputStream->addAvailableFormat(&outFormat, sampleRate, sampleRate);
+    
+    inputStream->setFormat(&inFormat);
     outputStream->setFormat(&outFormat);
     
     bufferSizePerChannel = blockSize * numBlocks * REAC_RESOLUTION;
@@ -176,8 +182,6 @@ bool REACAudioEngine::createAudioStreams(IOAudioSampleRate *sampleRate) {
     mOutBufferSize = bufferSizePerChannel * numOutChannels;
     
     if (mInBuffer == NULL) {
-        IOLog("REAC: Allocating input buffer - %d bytes.\n", (int) mInBufferSize);
-        return true; // TODO Debug
         mInBuffer = (void *)IOMalloc(mInBufferSize);
         if (NULL == mInBuffer) {
             IOLog("REAC: Error allocating input buffer - %d bytes.\n", (int) mInBufferSize);
@@ -186,7 +190,6 @@ bool REACAudioEngine::createAudioStreams(IOAudioSampleRate *sampleRate) {
     }
     
     if (mOutBuffer == NULL) {
-        IOLog("REAC: Allocating output buffer - %lu bytes.\n", (unsigned long)mOutBufferSize);
         mOutBuffer = (void *)IOMalloc(mOutBufferSize);
         if (NULL == mOutBuffer) {
             IOLog("REAC: Error allocating output buffer - %lu bytes.\n", (unsigned long)mOutBufferSize);
@@ -326,7 +329,7 @@ IOReturn REACAudioEngine::performFormatChange(IOAudioStream *audioStream, const 
 void REACAudioEngine::gotSamples(int numSamples, UInt8 *samples) {
     if (NULL == mInBuffer) {
         // This should never happen. But better complain than crash the computer I guess
-        // IOLog("REACAudioEngine::gotSamples(): Internal error.\n"); // TODO Debug
+        IOLog("REACAudioEngine::gotSamples(): Internal error.\n");
         return;
     }
     
@@ -335,12 +338,8 @@ void REACAudioEngine::gotSamples(int numSamples, UInt8 *samples) {
     int resolution = inputStream->format.fBitWidth/8;
     UInt8 *inBuffer = (UInt8*)mInBuffer + currentBlock*blockSize*bytesPerSample;
 
-    // TODO FIXME Hardcode limit to 16 channels:
-    int actualNumChannels = protocol->getDeviceInfo()->in_channels;
-    memset(inBuffer, 0, numSamples*bytesPerSample);
-    
     for (int i=0; i<numSamples; i++) {
-        for (int j=0; j<actualNumChannels; j++) {
+        for (int j=0; j<numChannels; j++) {
             int offset = bytesPerSample*i + resolution*(j/2);
             UInt8 *currentInBuf = inBuffer + bytesPerSample*i + resolution*j;
             if (0 == j%2) {
