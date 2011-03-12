@@ -92,8 +92,6 @@ bool REACAudioEngine::initHardware(IOService *provider) {
         setDescription(desc->getCStringNoCopy());
     }
     
-    setClockIsStable(FALSE);
-    
     // calculate our timeout in nanosecs, taking care to keep 64bits
     blockTimeoutNS = blockSize;
     blockTimeoutNS *= 1000000000;
@@ -101,6 +99,7 @@ bool REACAudioEngine::initHardware(IOService *provider) {
 
     setSampleRate(&initialSampleRate);
     setSampleOffset(blockSize);
+    setClockIsStable(FALSE);
     
     // Set the number of sample frames in each buffer
     setNumSampleFramesPerBuffer(blockSize * numBlocks);
@@ -316,47 +315,74 @@ IOReturn REACAudioEngine::performFormatChange(IOAudioStream *audioStream, const 
     return kIOReturnSuccess;
 }
 
-void REACAudioEngine::gotSamples(int numSamples, UInt8 *samples) {
+void REACAudioEngine::gotSamples(mbuf_t *data, int from, int to) {
     if (NULL == mInBuffer) {
         // This should never happen. But better complain than crash the computer I guess
         IOLog("REACAudioEngine::gotSamples(): Internal error.\n");
         return;
     }
     
-    // TODO Do a check of whether numSamples has gone around the buffer
+    const int numChannels = inputStream->format.fNumChannels;
+    const int resolution = inputStream->format.fBitWidth/8;
+    const int bytesPerSample = resolution * numChannels;
+    const int bytesPerPacket = bytesPerSample * REAC_SAMPLES_PER_PACKET;
     
-    int numChannels = inputStream->format.fNumChannels;
-    int resolution = inputStream->format.fBitWidth/8;
-    int bytesPerSample = resolution * numChannels;
-    UInt8 *inBuffer = (UInt8*)mInBuffer + currentBlock*blockSize*bytesPerSample;
-    UInt8 *inBufferEnd = inBuffer + bytesPerSample*numSamples;
+    UInt8 *inBuffer = (UInt8 *)mInBuffer + currentBlock*blockSize*bytesPerSample;
+    UInt8 *inBufferEnd = inBuffer + bytesPerPacket;
     
-    if (inBufferEnd > ((UInt8*)mInBuffer)+mInBufferSize) {
-        IOLog("REACAudioEngine::gotSamples(): Overflow!");
+    if (to-from != bytesPerPacket) {
+        IOLog("REACAudioEngine::gotSamples(): Got packet of invalid length.\n");
+        return;
+    }
+    
+    UInt8 intermediaryBuffer[6];
+    mbuf_t mbuf = *data;
+    UInt8 *mbufBuffer = (UInt8 *)mbuf_data(mbuf);
+    size_t mbufLength = mbuf_len(mbuf);
+    
+#define next_mbuf() \
+        mbuf = mbuf_next(mbuf); \
+        if (!mbuf) { \
+            /* This should never happen */ \
+            IOLog("REACAudioEngine::gotSamples(): Internal error (couldn't fetch next mbuf).\n"); \
+            return; \
+        } \
+        mbufBuffer = (UInt8 *)mbuf_data(mbuf); \
+        mbufLength = mbuf_len(mbuf);
+    
+    UInt32 skip = from;
+    while (skip) {
+        if (skip >= mbufLength) {
+            skip -= mbufLength;
+            next_mbuf();
+        }
+        else {
+            mbufLength -= skip;
+            mbufBuffer += skip;
+            skip = 0;
+        }
     }
     
     while (inBuffer < inBufferEnd) {
-        inBuffer[0] = samples[3];
-        inBuffer[1] = samples[0];
-        inBuffer[2] = samples[1];
-        
-        inBuffer[3] = samples[4];
-        inBuffer[4] = samples[5];
-        inBuffer[5] = samples[2];
-        
-        samples += resolution*2;
-        inBuffer += resolution*2;
-    }
-    
-    switch (protocol->getMode()) {
-        case REACProtocol::REAC_SPLIT:
-            break;
+        for (UInt32 i=0; i<sizeof(intermediaryBuffer); i++) {
+            while (0 == mbufLength) {
+                next_mbuf();
+            }
             
-        case REACProtocol::REAC_MASTER:
-        case REACProtocol::REAC_SLAVE:
-        default:
-            IOLog("REACAudioEngine::gotSamples(): Unsupported REAC mode\n");
-            break;
+            intermediaryBuffer[i] = *mbufBuffer;
+            ++mbufBuffer;
+            --mbufLength;
+        }
+        
+        inBuffer[0] = intermediaryBuffer[3];
+        inBuffer[1] = intermediaryBuffer[0];
+        inBuffer[2] = intermediaryBuffer[1];
+        
+        inBuffer[3] = intermediaryBuffer[4];
+        inBuffer[4] = intermediaryBuffer[5];
+        inBuffer[5] = intermediaryBuffer[2];
+        
+        inBuffer += resolution*2;
     }
     
     currentBlock++;
@@ -365,7 +391,6 @@ void REACAudioEngine::gotSamples(int numSamples, UInt8 *samples) {
         takeTimeStamp();
     }
 }
-
 
 void REACAudioEngine::ourTimerFired(OSObject *target, IOTimerEventSource *sender)
 {

@@ -194,7 +194,12 @@ void REACProtocol::filterCommandGateMsg(OSObject *target, void *data_mbuf, void*
     REACPacketHeader packetHeader;
     
     data = (mbuf_t *)data_mbuf;
-    len = mbuf_len(*data);
+    
+    len = 0;
+    mbuf_t dataToCalcLength = *data;
+    do {
+        len += mbuf_len(dataToCalcLength);
+    } while ((dataToCalcLength = mbuf_next(dataToCalcLength)));
     
     if (sizeof(REACPacketHeader)+samplesSize+sizeof(UInt16) != len) {
         IOLog("REACProtocol[%p]::filterCommandGateMsg(): Got packet of invalid length\n", proto);
