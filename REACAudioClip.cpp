@@ -103,20 +103,22 @@ IOReturn REACAudioEngine::convertInputSamples(const void *sampleBuf, void *destB
     while (numSamplesLeft > 0) {
         SInt32 inputSample;
         
-        if (numSamplesLeft < numChannels)
-            IOLog("RAE %d: %d %d %d\n", (int) numSamplesLeft, inputBuf[0], inputBuf[1], inputBuf[2]);
-        
-        // Fetch the SInt16 input sample
+        // Fetch the 24 bit input sample
         inputSample = inputBuf[2];
         inputSample = (inputSample << 8) | inputBuf[1];
         inputSample = (inputSample << 8) | inputBuf[0];
-        
+
+        // Fill the rest with ones if the number is negative (this is required as inputSample is SInt32)
         if (inputSample & 0x800000)
             inputSample |= ~0xffffff;
         
         const float Q = 1.0 / (0x7fffff + 0.5);
         
         *floatDestBuf = (inputSample + 0.5) * Q;
+        
+        inputBuf[0] = 0;
+        inputBuf[1] = 0;
+        inputBuf[2] = 0;
         
         // Move on to the next sample
         inputBuf += resolution;

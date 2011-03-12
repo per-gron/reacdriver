@@ -64,6 +64,7 @@ bool REACAudioEngine::initHardware(IOService *provider) {
     bool result = false;
     IOAudioSampleRate initialSampleRate;
     IOWorkLoop *wl;
+    OSString       *desc;
     
     //IOLog("REACAudioEngine[%p]::initHardware(%p)\n", this, provider);
     
@@ -85,6 +86,13 @@ bool REACAudioEngine::initHardware(IOService *provider) {
         IOLog("REACAudioEngine::initHardware() failed\n");
         goto Done;
     }
+    
+    desc = OSDynamicCast(OSString, getProperty(DESCRIPTION_KEY));
+    if (desc) {
+        setDescription(desc->getCStringNoCopy());
+    }
+    
+    setClockIsStable(FALSE);
     
     // calculate our timeout in nanosecs, taking care to keep 64bits
     blockTimeoutNS = blockSize;
@@ -120,7 +128,6 @@ Done:
  
 bool REACAudioEngine::createAudioStreams(IOAudioSampleRate *sampleRate) {
     bool            result = false;
-    OSString       *desc;
     
     UInt32              numInChannels = protocol->getDeviceInfo()->in_channels;
     UInt32              numOutChannels = protocol->getDeviceInfo()->out_channels;
@@ -133,11 +140,6 @@ bool REACAudioEngine::createAudioStreams(IOAudioSampleRate *sampleRate) {
     
     sampleRate->whole = REAC_SAMPLE_RATE;
     sampleRate->fraction = 0;
-    
-    desc = OSDynamicCast(OSString, getProperty(DESCRIPTION_KEY));
-    if (desc) {
-        setDescription(desc->getCStringNoCopy());
-    }
     
     inputStream = new IOAudioStream;
     outputStream = new IOAudioStream;
@@ -321,26 +323,29 @@ void REACAudioEngine::gotSamples(int numSamples, UInt8 *samples) {
         return;
     }
     
+    // TODO Do a check of whether numSamples has gone around the buffer
+    
     int numChannels = inputStream->format.fNumChannels;
-    int bytesPerSample = inputStream->format.fBitWidth/8 * numChannels;
     int resolution = inputStream->format.fBitWidth/8;
+    int bytesPerSample = resolution * numChannels;
     UInt8 *inBuffer = (UInt8*)mInBuffer + currentBlock*blockSize*bytesPerSample;
-
-    for (int i=0; i<numSamples; i++) {
-        for (int j=0; j<numChannels; j++) {
-            int offset = bytesPerSample*i + resolution*(j/2);
-            UInt8 *currentInBuf = inBuffer + bytesPerSample*i + resolution*j;
-            if (0 == j%2) {
-                currentInBuf[0] = samples[offset+3];
-                currentInBuf[1] = samples[offset+0];
-                currentInBuf[2] = samples[offset+1];
-            }
-            else {
-                currentInBuf[0] = samples[offset+4];
-                currentInBuf[1] = samples[offset+5];
-                currentInBuf[2] = samples[offset+2];
-            }
-        }
+    UInt8 *inBufferEnd = inBuffer + bytesPerSample*numSamples;
+    
+    if (inBufferEnd > ((UInt8*)mInBuffer)+mInBufferSize) {
+        IOLog("REACAudioEngine::gotSamples(): Overflow!");
+    }
+    
+    while (inBuffer < inBufferEnd) {
+        inBuffer[0] = samples[3];
+        inBuffer[1] = samples[0];
+        inBuffer[2] = samples[1];
+        
+        inBuffer[3] = samples[4];
+        inBuffer[4] = samples[5];
+        inBuffer[5] = samples[2];
+        
+        samples += resolution*2;
+        inBuffer += resolution*2;
     }
     
     switch (protocol->getMode()) {
