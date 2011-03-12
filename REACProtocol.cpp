@@ -185,27 +185,39 @@ REACProtocol::REACMode REACProtocol::getMode() const {
     return mode;
 }
 
-void REACProtocol::filterCommandGateMsg(OSObject *target, void *buf, void *packetLength, void*, void*) {
+void REACProtocol::filterCommandGateMsg(OSObject *target, void *data_mbuf, void*, void*, void*) {
     REACProtocol *proto = (REACProtocol *)target;
-    UInt32 len = *((UInt32 *)packetLength);
     int samplesSize = REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*proto->deviceInfo->in_channels;
-    REACPacketHeader *packetHeader = NULL;
+    
+    mbuf_t *data;
+    UInt32 len;
+    REACPacketHeader packetHeader;
+    
+    data = (mbuf_t *)data_mbuf;
+    len = mbuf_len(*data);
     
     if (sizeof(REACPacketHeader)+samplesSize+sizeof(UInt16) != len) {
-        IOLog("REACProtocol[%p]::filterInputFunc(): Got packet of invalid length\n", proto);
+        IOLog("REACProtocol[%p]::filterCommandGateMsg(): Got packet of invalid length\n", proto);
+        return;
     }
     
-    if (REAC_ENDING != (*((UInt16*)(((char*)buf)+sizeof(REACPacketHeader)+samplesSize)))) {
-        // Incorrect ending. Not a REAC packet?
-        goto Done;
+    if (0 != mbuf_copydata(*data, 0, sizeof(REACPacketHeader), &packetHeader)) {
+        IOLog("REACProtocol[%p]::filterCommandGateMsg(): Failed to fetch REAC packet header\n", proto);
+        return;
     }
     
-    packetHeader = (REACPacketHeader*) buf;
+    // TODO Check if the ending of the packet is right. ATM not as easy to implement as it
+    // was when we copied the mbuf to a contiguous OSMalloc'd buffer.
+    //
+    // if (REAC_ENDING != (*((UInt16*)(((char*)buf)+sizeof(REACPacketHeader)+samplesSize)))) {
+    //     // Incorrect ending. Not a REAC packet?
+    //     goto Done;
+    // }
     
-    if (proto->connected /* This prunes a lost packet message when connecting */ && proto->lastCounter+1 != packetHeader->counter) {
-        if (!(65535 == proto->lastCounter && 0 == packetHeader->counter)) {
-            IOLog("REACProtocol[%p]::filterInputFunc(): Lost packet [%d %d]\n",
-                  proto, proto->lastCounter, packetHeader->counter);
+    if (proto->connected /* This prunes a lost packet message when connecting */ && proto->lastCounter+1 != packetHeader.counter) {
+        if (!(65535 == proto->lastCounter && 0 == packetHeader.counter)) {
+            IOLog("REACProtocol[%p]::filterCommandGateMsg(): Lost packet [%d %d]\n",
+                  proto, proto->lastCounter, packetHeader.counter);
         }
     }
     
@@ -220,17 +232,12 @@ void REACProtocol::filterCommandGateMsg(OSObject *target, void *buf, void *packe
     if (proto->connected) {
         if (NULL != proto->samplesCallback) {
             proto->samplesCallback(proto, &proto->cookieA, &proto->cookieB,
-                                   REAC_SAMPLES_PER_PACKET, (UInt8*) buf+sizeof(REACPacketHeader));
+                                   data, sizeof(REACPacketHeader), sizeof(REACPacketHeader)+samplesSize);
         }
     }
-    proto->processDataStream(packetHeader);
+    proto->processDataStream(&packetHeader);
     
-    proto->lastCounter = packetHeader->counter;
-    
-Done:
-    if (NULL != buf) {
-        OSFree(buf, len, proto->reacMallocTag);
-    }
+    proto->lastCounter = packetHeader.counter;
 }
 
 
@@ -240,7 +247,6 @@ errno_t REACProtocol::filterInputFunc(void *cookie,
                                       mbuf_t *data,
                                       char **frame_ptr) {
     REACProtocol *proto = (REACProtocol *)cookie;
-    void *buf = NULL;
     
     char *header = *frame_ptr;
     if (!(0x88 == ((UInt8*)header)[12] && 0x19 == ((UInt8*)header)[13])) {
@@ -248,15 +254,7 @@ errno_t REACProtocol::filterInputFunc(void *cookie,
         return 0; // Continue normal processing of the package.
     }
     
-    UInt32 len = mbuf_len(*data);
-    
-    buf = OSMalloc(len, proto->reacMallocTag);
-    if (NULL == buf) {
-        return EINPROGRESS; // Skip the processing of the package.
-    }
-    mbuf_copydata(*data, 0, len, buf);
-    
-    proto->filterCommandGate->runCommand(buf, &len);
+    proto->filterCommandGate->runCommand(data);
     
     return EINPROGRESS; // Skip the processing of the package.
 }

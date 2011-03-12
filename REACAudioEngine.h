@@ -44,6 +44,9 @@ class REACAudioEngine : public IOAudioEngine
 
     bool                duringHardwareInit;
     
+    // For clipping routines
+    UInt64              lastSampleTimeNS;
+    
     
 public:
     
@@ -73,7 +76,7 @@ public:
                                          UInt32 numSampleFrames, const IOAudioStreamFormat *streamFormat,
                                          IOAudioStream *audioStream);
     
-    void gotSamples(int numSamples, UInt8 *samples);
+    void gotSamples(mbuf_t *data, int from, int to);
     
 protected:
     static void ourTimerFired(OSObject *target, IOTimerEventSource *sender);
