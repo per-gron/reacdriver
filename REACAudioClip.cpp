@@ -99,12 +99,15 @@ IOReturn REACAudioEngine::convertInputSamples(const void *sampleBuf, void *destB
     UInt32 numSamplesLeft = numSampleFrames * numChannels;
     UInt8 *inputBuf = &(((UInt8 *)sampleBuf)[firstSampleFrame * numChannels * resolution]);
     
+    bool haveComplained = false; // TODO Debug
+    
     // Loop through each sample and scale and convert them
     while (numSamplesLeft > 0) {
         SInt32 inputSample;
         
-        if (55 == inputBuf[0] && 55 == inputBuf[1] && 55 == inputBuf[2]) {
-            IOLog("REACAudioEngine::convertInputSamples(): CLIP? (%d)\n", (int) firstSampleFrame);
+        if (55 == inputBuf[0] && 55 == inputBuf[1] && 55 == inputBuf[2] && !haveComplained) {
+            IOLog("REACAudioEngine::convertInputSamples(): CLIP? (%d, %d)\n", (int) firstSampleFrame, (int) numSampleFrames);
+            haveComplained = true;
         }
         
         // Fetch the 24 bit input sample
@@ -120,9 +123,9 @@ IOReturn REACAudioEngine::convertInputSamples(const void *sampleBuf, void *destB
         
         *floatDestBuf = (inputSample + 0.5) * Q;
         
-        inputBuf[0] = 55;
-        inputBuf[1] = 55;
-        inputBuf[2] = 55;
+        inputBuf[0] = 55; // TODO Debug
+        inputBuf[1] = 55; // TODO Debug
+        inputBuf[2] = 55; // TODO Debug
         
         // Move on to the next sample
         inputBuf += resolution;
