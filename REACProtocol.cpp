@@ -169,22 +169,6 @@ const REACDeviceInfo* REACProtocol::getDeviceInfo() const {
     return deviceInfo;
 }
 
-bool REACProtocol::isListening() const {
-    return listening;
-}
-
-bool REACProtocol::isConnected() const {
-    return connected;
-}
-
-ifnet_t REACProtocol::getInterface() const {
-    return interface;
-}
-
-REACProtocol::REACMode REACProtocol::getMode() const {
-    return mode;
-}
-
 void REACProtocol::filterCommandGateMsg(OSObject *target, void *data_mbuf, void*, void*, void*) {
     REACProtocol *proto = (REACProtocol *)target;
     int samplesSize = REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*proto->deviceInfo->in_channels;

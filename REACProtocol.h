@@ -121,15 +121,16 @@ public:
     errno_t pushSamples(int numSamples, UInt8* samples);
     
     const REACDeviceInfo* getDeviceInfo() const;
-    bool isListening() const;
-    bool isConnected() const;
+    bool isListening() const { return listening; }
+    bool isConnected() const { return connected; }
     // If you want to continue using the ifnet_t object, make sure to call
     // ifnet_reference on it, as REACProtocol will release it when it is freed.
-    ifnet_t getInterface() const;
-    REACMode getMode() const;
+    ifnet_t getInterface() const { return interface; }
+    REACMode getMode() const { return mode; }
 
 protected:
     IOWorkLoop         *workLoop;
+    IOTimerEventSource *timerEventSource;
     IOCommandGate      *filterCommandGate;
     
     ifnet_t             interface;

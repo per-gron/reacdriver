@@ -73,6 +73,7 @@ bool REACAudioEngine::init(REACProtocol* proto, OSDictionary *properties) {
     inputStream = outputStream = NULL;
     duringHardwareInit = FALSE;
     mLastValidSampleFrame = 0;
+    timerEventSource = NULL;
     result = true;
     
 Done:
@@ -116,7 +117,7 @@ bool REACAudioEngine::initHardware(IOService *provider) {
     blockTimeoutNS = blockSize;
     blockTimeoutNS *= 1000000000;
     blockTimeoutNS /= initialSampleRate.whole;
-
+    
     setSampleRate(&initialSampleRate);
     setSampleOffset(blockSize*bufferOffsetFactor);
     setClockIsStable(FALSE);
@@ -129,13 +130,13 @@ bool REACAudioEngine::initHardware(IOService *provider) {
         goto Done;
     }
     
-    // FIXME for REAC_MASTER: timerEventSource = IOTimerEventSource::timerEventSource(this, ourTimerFired);
+    timerEventSource = IOTimerEventSource::timerEventSource(this, timerFired);
     
-    // FIXME for REAC_MASTER: if (!timerEventSource) {
-    // FIXME for REAC_MASTER:     goto Done;
-    // FIXME for REAC_MASTER: }
+    if (NULL == timerEventSource) {
+        goto Done;
+    }
     
-    // FIXME for REAC_MASTER: workLoop->addEventSource(timerEventSource);
+    workLoop->addEventSource(timerEventSource);
         
     result = true;
     
@@ -247,13 +248,20 @@ Done:
 void REACAudioEngine::free() {
     //IOLog("REACAudioEngine[%p]::free()\n", this);
     
-    if (mInBuffer) {
+    if (NULL != mInBuffer) {
         IOFree(mInBuffer, mInBufferSize);
         mInBuffer = NULL;
     }
-    if (mOutBuffer) {
+    if (NULL != mOutBuffer) {
         IOFree(mOutBuffer, mOutBufferSize);
         mOutBuffer = NULL;
+    }
+    
+    if (NULL != timerEventSource) {
+        timerEventSource->cancelTimeout();
+        workLoop->removeEventSource(timerEventSource);
+        timerEventSource->release();
+        timerEventSource = NULL;
     }
     
     super::free();
@@ -277,13 +285,15 @@ IOReturn REACAudioEngine::performAudioEngineStart() {
     takeTimeStamp(false);
     currentBlock = 0;
     
-    // FIXME for REAC_MASTER: timerEventSource->setTimeout(blockTimeoutNS);
-    
-    // FIXME for REAC_MASTER: uint64_t time;
-    // FIXME for REAC_MASTER: clock_get_uptime(&time);
-    // FIXME for REAC_MASTER: absolutetime_to_nanoseconds(time, &nextTime);
-
-    // FIXME for REAC_MASTER: nextTime += blockTimeoutNS;
+    if (REACProtocol::REAC_MASTER == protocol->getMode()) {
+        timerEventSource->setTimeout(blockTimeoutNS);
+        
+        uint64_t time;
+        clock_get_uptime(&time);
+        absolutetime_to_nanoseconds(time, &nextTime);
+        
+        nextTime += blockTimeoutNS;
+    }
     
     return kIOReturnSuccess;
 }
@@ -291,7 +301,9 @@ IOReturn REACAudioEngine::performAudioEngineStart() {
 IOReturn REACAudioEngine::performAudioEngineStop() {
     //IOLog("REACAudioEngine[%p]::performAudioEngineStop()\n", this);
          
-    // FIXME for REAC_MASTER: timerEventSource->cancelTimeout();
+    if (NULL != timerEventSource) {
+        timerEventSource->cancelTimeout();
+    }
     
     return kIOReturnSuccess;
 }
@@ -313,18 +325,15 @@ UInt32 REACAudioEngine::getCurrentSampleFrame() {
 IOReturn REACAudioEngine::performFormatChange(IOAudioStream *audioStream, const IOAudioStreamFormat *newFormat,
                                               const IOAudioSampleRate *newSampleRate) {
     if (!duringHardwareInit) {
-  //      IOLog("REACAudioEngine[%p]::peformFormatChange(%p, %p, %p)\n", this, audioStream, newFormat, newSampleRate);
+        // IOLog("REACAudioEngine[%p]::peformFormatChange(%p, %p, %p)\n", this, audioStream, newFormat, newSampleRate);
     }
 
     // It is possible that this function will be called with only a format or only a sample rate
     // We need to check for NULL for each of the parameters
-    if (newFormat) {
-        if (!duringHardwareInit) {
-            // #### do we need to make sure output format == input format??
-        }
+    if (NULL != newFormat) {
     }
     
-    if (newSampleRate) {
+    if (NULL != newSampleRate) {
         if (!duringHardwareInit) {
             UInt64 newblockTime = blockSize;
             newblockTime *= 1000000000;
@@ -355,6 +364,7 @@ void REACAudioEngine::gotSamples(mbuf_t *data, int from, int to) {
         return;
     }
     
+    // TODO The mbuf stuff should probably be moved to REACProtocol
     UInt8 intermediaryBuffer[6];
     mbuf_t mbuf = *data;
     UInt8 *mbufBuffer = (UInt8 *)mbuf_data(mbuf);
@@ -405,22 +415,28 @@ void REACAudioEngine::gotSamples(mbuf_t *data, int from, int to) {
         inBuffer += resolution*2;
     }
     
-    currentBlock++;
-    if (currentBlock >= numBlocks) {
-        currentBlock = 0;
-        takeTimeStamp();
+    if (REACProtocol::REAC_MASTER != protocol->getMode()) {
+        currentBlock++;
+        if (currentBlock >= numBlocks) {
+            currentBlock = 0;
+            takeTimeStamp();
+        }
     }
 }
 
-void REACAudioEngine::ourTimerFired(OSObject *target, IOTimerEventSource *sender)
-{
-    if (target) {
+void REACAudioEngine::timerFired(OSObject *target, IOTimerEventSource *sender) {
+    if (NULL != target) {
         REACAudioEngine  *audioEngine = OSDynamicCast(REACAudioEngine, target);
         UInt64            thisTimeNS;
         uint64_t          time;
         SInt64            diff;
         
-        if (audioEngine) {
+        if (NULL != audioEngine) {
+            if (REACProtocol::REAC_MASTER == audioEngine->protocol->getMode()) {
+                // This should never happen.
+                return;
+            }
+            
             // make sure we have a client, and thus new data so we don't keep on 
             // just looping around the last client's last buffer!    
             IOAudioStream *outStream = audioEngine->getAudioStream(kIOAudioStreamDirectionOutput, 1);
@@ -435,10 +451,10 @@ void REACAudioEngine::ourTimerFired(OSObject *target, IOTimerEventSource *sender
                 audioEngine->takeTimeStamp();
             }
             
-            // calculate next time to fire, by taking the time and comparing it to the time we requested.                                 
+            // Calculate next time to fire, by taking the time and comparing it to the time we requested.                                 
             clock_get_uptime(&time);
             absolutetime_to_nanoseconds(time, &thisTimeNS);
-            // this next calculation must be signed or we will introduce distortion after only a couple of vectors
+            // This next calculation must be signed or we will introduce distortion after only a couple of vectors
             diff = ((SInt64)audioEngine->nextTime - (SInt64)thisTimeNS);
             sender->setTimeout(audioEngine->blockTimeoutNS + diff);
             audioEngine->nextTime += audioEngine->blockTimeoutNS;

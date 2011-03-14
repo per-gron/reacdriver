@@ -33,7 +33,7 @@ class REACAudioEngine : public IOAudioEngine
     SInt32              mMuteIn[17];
     SInt32              mGain[17];
     
-    // FIXME for REAC_MASTER: IOTimerEventSource *timerEventSource;
+    IOTimerEventSource *timerEventSource;
     
     UInt32              blockSize;                // In sample frames -- fixed, as defined in the Info.plist (e.g. 8192)
     UInt32              numBlocks;
@@ -80,7 +80,7 @@ public:
     void gotSamples(mbuf_t *data, int from, int to);
     
 protected:
-    static void ourTimerFired(OSObject *target, IOTimerEventSource *sender);
+    static void timerFired(OSObject *target, IOTimerEventSource *sender);
     
     virtual bool initControls();
     
