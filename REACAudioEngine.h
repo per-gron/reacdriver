@@ -37,6 +37,7 @@ class REACAudioEngine : public IOAudioEngine
     
     UInt32              blockSize;                // In sample frames -- fixed, as defined in the Info.plist (e.g. 8192)
     UInt32              numBlocks;
+    UInt32              bufferOffsetFactor;
     UInt32              currentBlock;
     
     UInt64              blockTimeoutNS;

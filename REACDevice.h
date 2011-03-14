@@ -16,6 +16,7 @@
 #define REAC_PROTOCOL_KEY               "REACProtocol"
 #define BLOCK_SIZE_KEY                  "BlockSize"
 #define NUM_BLOCKS_KEY                  "NumBlocks"
+#define BUFFER_OFFSET_FACTOR_KEY        "BufferOffsetFactor"
 #define IN_FORMAT_KEY                   "InFormat"
 #define OUT_FORMAT_KEY                  "OutFormat"
 #define SAMPLE_RATES_KEY				"SampleRates"

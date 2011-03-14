@@ -23,14 +23,16 @@
 // will result in audio dropouts if the delay is bigger than
 // BUFFER_OFFSET_FACTOR/REAC_PACKETS_PER_SECOND seconds.
 //
-// TODO This really ought to be a configurable parameter.
-#define BUFFER_OFFSET_FACTOR   40
+// Note that this is only the default value, and is overridden if found in Info.plist
+#define BUFFER_OFFSET_FACTOR_DEFAULT   40
 
 // This adjusts the size of the internal audio ring buffers in the driver. It doesn't
 // affect latency, it just has to be bigger (in samples) than the CoreAudio float audio
 // ring buffer plus a constant buffer offset, yet not be as big as to take unnecessary
 // amounts of memory (memory is precious in the kernel).
-#define NUM_BLOCKS             1024
+//
+// Note that this is only the default value, and is overridden if found in Info.plist
+#define NUM_BLOCKS_DEFAULT             1024
 
 #define super IOAudioEngine
 
@@ -59,10 +61,13 @@ bool REACAudioEngine::init(REACProtocol* proto, OSDictionary *properties) {
     // If no non-hardware initialization is needed, this function can be removed
     
     number = OSDynamicCast(OSNumber, getProperty(NUM_BLOCKS_KEY));
-    numBlocks = (number ? number->unsigned32BitValue() : NUM_BLOCKS);
+    numBlocks = (number ? number->unsigned32BitValue() : NUM_BLOCKS_DEFAULT);
     
     number = OSDynamicCast(OSNumber, getProperty(BLOCK_SIZE_KEY));
     blockSize = (number ? number->unsigned32BitValue() : REAC_SAMPLES_PER_PACKET);
+    
+    number = OSDynamicCast(OSNumber, getProperty(BUFFER_OFFSET_FACTOR_KEY));
+    bufferOffsetFactor = (number ? number->unsigned32BitValue() : BUFFER_OFFSET_FACTOR_DEFAULT);
     
     mInBuffer = mOutBuffer = NULL;
     inputStream = outputStream = NULL;
@@ -113,7 +118,7 @@ bool REACAudioEngine::initHardware(IOService *provider) {
     blockTimeoutNS /= initialSampleRate.whole;
 
     setSampleRate(&initialSampleRate);
-    setSampleOffset(blockSize*BUFFER_OFFSET_FACTOR);
+    setSampleOffset(blockSize*bufferOffsetFactor);
     setClockIsStable(FALSE);
     
     // Set the number of sample frames in each buffer
