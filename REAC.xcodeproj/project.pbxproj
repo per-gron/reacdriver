@@ -1,0 +1,397 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 45;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		54D0AD960A5E329B006380BD /* REACDevice.h in Headers */ = {isa = PBXBuildFile; fileRef = C93407620601317E002E6A19 /* REACDevice.h */; };
+		54D0AD970A5E329B006380BD /* REACAudioEngine.h in Headers */ = {isa = PBXBuildFile; fileRef = C93407630601317E002E6A19 /* REACAudioEngine.h */; };
+		54D0AD9B0A5E329B006380BD /* REACAudioEngine.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C93407640601317E002E6A19 /* REACAudioEngine.cpp */; };
+		54D0AD9D0A5E329B006380BD /* REACDevice.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C93407660601317E002E6A19 /* REACDevice.cpp */; };
+		CB102B9912D0D5FE00231CE9 /* REACProtocol.h in Headers */ = {isa = PBXBuildFile; fileRef = CB102B9712D0D5FE00231CE9 /* REACProtocol.h */; };
+		CB102B9A12D0D5FE00231CE9 /* REACProtocol.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB102B9812D0D5FE00231CE9 /* REACProtocol.cpp */; };
+		CB102BF312D0F64B00231CE9 /* REACAudioClip.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB102BF112D0F64B00231CE9 /* REACAudioClip.cpp */; };
+		CB3CE415132BC6FF00CAD028 /* REACAudioClip.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB102BF112D0F64B00231CE9 /* REACAudioClip.cpp */; };
+		CB3CE418132BC75100CAD028 /* libREACFloatSupport.a in Headers */ = {isa = PBXBuildFile; fileRef = CB3CE412132BC6D300CAD028 /* libREACFloatSupport.a */; };
+		CB3CE41D132CB04B00CAD028 /* PCMBlitterLibTest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB3CE419132CB04A00CAD028 /* PCMBlitterLibTest.cpp */; };
+		CB3CE41E132CB04B00CAD028 /* PCMBlitterLib.h in Headers */ = {isa = PBXBuildFile; fileRef = CB3CE41A132CB04A00CAD028 /* PCMBlitterLib.h */; };
+		CB3CE420132CB04B00CAD028 /* PCMBlitterLib.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB3CE41C132CB04A00CAD028 /* PCMBlitterLib.cpp */; };
+		CB3CE422132CB0CA00CAD028 /* FPU.h in Headers */ = {isa = PBXBuildFile; fileRef = CB3CE421132CB0CA00CAD028 /* FPU.h */; };
+		CB3CE424132E008E00CAD028 /* libREACFloatSupport.a in Frameworks */ = {isa = PBXBuildFile; fileRef = CB3CE412132BC6D300CAD028 /* libREACFloatSupport.a */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		CB3CE416132BC70400CAD028 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 089C1669FE841209C02AAC07 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CB3CE411132BC6D300CAD028;
+			remoteInfo = REACFloatSupport;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		00F55081007288EA11FF4F98 /* Kernel.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Kernel.framework; path = System/Library/Frameworks/Kernel.framework; sourceTree = SDKROOT; };
+		54D0ADA60A5E329B006380BD /* REAC.kext */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = REAC.kext; sourceTree = BUILT_PRODUCTS_DIR; };
+		789FB3540D62DE4E00C0F5C7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		C93407620601317E002E6A19 /* REACDevice.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = REACDevice.h; sourceTree = "<group>"; };
+		C93407630601317E002E6A19 /* REACAudioEngine.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = REACAudioEngine.h; sourceTree = "<group>"; };
+		C93407640601317E002E6A19 /* REACAudioEngine.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = REACAudioEngine.cpp; sourceTree = "<group>"; };
+		C93407660601317E002E6A19 /* REACDevice.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = REACDevice.cpp; sourceTree = "<group>"; };
+		CB102B9712D0D5FE00231CE9 /* REACProtocol.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = REACProtocol.h; sourceTree = "<group>"; };
+		CB102B9812D0D5FE00231CE9 /* REACProtocol.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = REACProtocol.cpp; sourceTree = "<group>"; };
+		CB102BF112D0F64B00231CE9 /* REACAudioClip.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = REACAudioClip.cpp; sourceTree = "<group>"; };
+		CB3CE412132BC6D300CAD028 /* libREACFloatSupport.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libREACFloatSupport.a; sourceTree = BUILT_PRODUCTS_DIR; };
+		CB3CE419132CB04A00CAD028 /* PCMBlitterLibTest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PCMBlitterLibTest.cpp; sourceTree = "<group>"; };
+		CB3CE41A132CB04A00CAD028 /* PCMBlitterLib.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PCMBlitterLib.h; sourceTree = "<group>"; };
+		CB3CE41B132CB04A00CAD028 /* PCMBlitterLib.exp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.exports; path = PCMBlitterLib.exp; sourceTree = "<group>"; };
+		CB3CE41C132CB04A00CAD028 /* PCMBlitterLib.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PCMBlitterLib.cpp; sourceTree = "<group>"; };
+		CB3CE421132CB0CA00CAD028 /* FPU.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FPU.h; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		54D0AD9E0A5E329B006380BD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CB3CE424132E008E00CAD028 /* libREACFloatSupport.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CB3CE40F132BC6D300CAD028 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		089C166AFE841209C02AAC07 /* SampleAudioDriver */ = {
+			isa = PBXGroup;
+			children = (
+				247142CAFF3F8F9811CA285C /* Source */,
+				089C167CFE841241C02AAC07 /* Resources */,
+				19C28FB6FE9D52B211CA2CBB /* Products */,
+				00F55081007288EA11FF4F98 /* Kernel.framework */,
+			);
+			name = SampleAudioDriver;
+			sourceTree = "<group>";
+		};
+		089C167CFE841241C02AAC07 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				789FB3540D62DE4E00C0F5C7 /* Info.plist */,
+			);
+			name = Resources;
+			sourceTree = "<group>";
+		};
+		19C28FB6FE9D52B211CA2CBB /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				54D0ADA60A5E329B006380BD /* REAC.kext */,
+				CB3CE412132BC6D300CAD028 /* libREACFloatSupport.a */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		247142CAFF3F8F9811CA285C /* Source */ = {
+			isa = PBXGroup;
+			children = (
+				C93407620601317E002E6A19 /* REACDevice.h */,
+				C93407660601317E002E6A19 /* REACDevice.cpp */,
+				C93407630601317E002E6A19 /* REACAudioEngine.h */,
+				C93407640601317E002E6A19 /* REACAudioEngine.cpp */,
+				CB102B9712D0D5FE00231CE9 /* REACProtocol.h */,
+				CB102B9812D0D5FE00231CE9 /* REACProtocol.cpp */,
+				CB102BF112D0F64B00231CE9 /* REACAudioClip.cpp */,
+				CB3CE421132CB0CA00CAD028 /* FPU.h */,
+				CB3CE419132CB04A00CAD028 /* PCMBlitterLibTest.cpp */,
+				CB3CE41A132CB04A00CAD028 /* PCMBlitterLib.h */,
+				CB3CE41B132CB04A00CAD028 /* PCMBlitterLib.exp */,
+				CB3CE41C132CB04A00CAD028 /* PCMBlitterLib.cpp */,
+			);
+			name = Source;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXHeadersBuildPhase section */
+		54D0AD950A5E329B006380BD /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				54D0AD960A5E329B006380BD /* REACDevice.h in Headers */,
+				54D0AD970A5E329B006380BD /* REACAudioEngine.h in Headers */,
+				CB102B9912D0D5FE00231CE9 /* REACProtocol.h in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CB3CE410132BC6D300CAD028 /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CB3CE418132BC75100CAD028 /* libREACFloatSupport.a in Headers */,
+				CB3CE41E132CB04B00CAD028 /* PCMBlitterLib.h in Headers */,
+				CB3CE422132CB0CA00CAD028 /* FPU.h in Headers */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
+/* Begin PBXNativeTarget section */
+		54D0AD930A5E329B006380BD /* REACDriver */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 54D0ADA10A5E329B006380BD /* Build configuration list for PBXNativeTarget "REACDriver" */;
+			buildPhases = (
+				54D0AD950A5E329B006380BD /* Headers */,
+				54D0AD980A5E329B006380BD /* Resources */,
+				54D0AD9A0A5E329B006380BD /* Sources */,
+				54D0AD9E0A5E329B006380BD /* Frameworks */,
+				54D0AD9F0A5E329B006380BD /* Rez */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CB3CE417132BC70400CAD028 /* PBXTargetDependency */,
+			);
+			name = REACDriver;
+			productInstallPath = "$(SYSTEM_LIBRARY_DIR)/Extensions";
+			productName = SampleAudioDriver;
+			productReference = 54D0ADA60A5E329B006380BD /* REAC.kext */;
+			productType = "com.apple.product-type.kernel-extension.iokit";
+		};
+		CB3CE411132BC6D300CAD028 /* REACFloatSupport */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CB3CE414132BC6D300CAD028 /* Build configuration list for PBXNativeTarget "REACFloatSupport" */;
+			buildPhases = (
+				CB3CE40E132BC6D300CAD028 /* Sources */,
+				CB3CE40F132BC6D300CAD028 /* Frameworks */,
+				CB3CE410132BC6D300CAD028 /* Headers */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = REACFloatSupport;
+			productName = REACFloatSupport;
+			productReference = CB3CE412132BC6D300CAD028 /* libREACFloatSupport.a */;
+			productType = "com.apple.product-type.library.static";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		089C1669FE841209C02AAC07 /* Project object */ = {
+			isa = PBXProject;
+			buildConfigurationList = 548AD6D309CE873500241D17 /* Build configuration list for PBXProject "REAC" */;
+			compatibilityVersion = "Xcode 3.1";
+			developmentRegion = English;
+			hasScannedForEncodings = 1;
+			knownRegions = (
+				English,
+				Japanese,
+				French,
+				German,
+			);
+			mainGroup = 089C166AFE841209C02AAC07 /* SampleAudioDriver */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				54D0AD930A5E329B006380BD /* REACDriver */,
+				CB3CE411132BC6D300CAD028 /* REACFloatSupport */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		54D0AD980A5E329B006380BD /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXRezBuildPhase section */
+		54D0AD9F0A5E329B006380BD /* Rez */ = {
+			isa = PBXRezBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXRezBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		54D0AD9A0A5E329B006380BD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				54D0AD9B0A5E329B006380BD /* REACAudioEngine.cpp in Sources */,
+				54D0AD9D0A5E329B006380BD /* REACDevice.cpp in Sources */,
+				CB102B9A12D0D5FE00231CE9 /* REACProtocol.cpp in Sources */,
+				CB102BF312D0F64B00231CE9 /* REACAudioClip.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CB3CE40E132BC6D300CAD028 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CB3CE415132BC6FF00CAD028 /* REACAudioClip.cpp in Sources */,
+				CB3CE41D132CB04B00CAD028 /* PCMBlitterLibTest.cpp in Sources */,
+				CB3CE420132CB04B00CAD028 /* PCMBlitterLib.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		CB3CE417132BC70400CAD028 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CB3CE411132BC6D300CAD028 /* REACFloatSupport */;
+			targetProxy = CB3CE416132BC70400CAD028 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		548AD6D409CE873500241D17 /* Development */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GCC_VERSION = com.apple.compilers.llvm.clang.1_0;
+				SDKROOT = macosx;
+			};
+			name = Development;
+		};
+		54D0ADA20A5E329B006380BD /* Development */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COPY_PHASE_STRIP = NO;
+				DEPLOYMENT_LOCATION = YES;
+				DSTROOT = "$(PROJECT_DIR)";
+				GCC_ENABLE_FIX_AND_CONTINUE = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = DEBUG;
+				GCC_VERSION = 4.2;
+				INFOPLIST_FILE = Info.plist;
+				INSTALL_GROUP = "$(GROUP)";
+				INSTALL_OWNER = "$(USER)";
+				INSTALL_PATH = /build/Development;
+				MODULE_NAME = com.pereckerdal.driver.REAC;
+				PRODUCT_NAME = REAC;
+				SDKROOT = "";
+				WARNING_CFLAGS = (
+					"-Wmost",
+					"-Wno-four-char-constants",
+					"-Wno-unknown-pragmas",
+				);
+				WRAPPER_EXTENSION = kext;
+			};
+			name = Development;
+		};
+		54D0ADA30A5E329B006380BD /* Deployment */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = (
+					x86_64,
+					i386,
+					ppc,
+				);
+				COPY_PHASE_STRIP = NO;
+				DEPLOYMENT_LOCATION = YES;
+				DSTROOT = "$(PROJECT_DIR)";
+				GCC_ENABLE_FIX_AND_CONTINUE = NO;
+				GCC_OPTIMIZATION_LEVEL = 3;
+				GCC_VERSION = 4.2;
+				INFOPLIST_FILE = Info.plist;
+				INSTALL_GROUP = "$(GROUP)";
+				INSTALL_OWNER = "$(USER)";
+				INSTALL_PATH = /build/Deployment;
+				MODULE_NAME = com.pereckerdal.driver.REAC;
+				PRODUCT_NAME = REAC;
+				WARNING_CFLAGS = (
+					"-Wmost",
+					"-Wno-four-char-constants",
+					"-Wno-unknown-pragmas",
+				);
+				WRAPPER_EXTENSION = kext;
+			};
+			name = Deployment;
+		};
+		CB3CE413132BC6D300CAD028 /* Development */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = "$(ARCHS_STANDARD_32_64_BIT)";
+				COPY_PHASE_STRIP = NO;
+				EXECUTABLE_PREFIX = lib;
+				GCC_C_LANGUAGE_STANDARD = "compiler-default";
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_CPP_EXCEPTIONS = NO;
+				GCC_ENABLE_CPP_RTTI = NO;
+				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
+				GCC_OPTIMIZATION_LEVEL = 3;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					DEBUG,
+					"KERNEL=1",
+					"KERNEL_PRIVATE=1",
+					"AR_Debug=1",
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_VERSION = com.apple.compilers.llvmgcc42;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = "$(SYSTEM_LIBRARY_DIR)/Frameworks/Kernel.framework/Headers";
+				MACOSX_DEPLOYMENT_TARGET = 10.6;
+				MODULE_NAME = com.pereckerdal.driver.REAC;
+				MODULE_VERSION = 1.0;
+				ONLY_ACTIVE_ARCH = NO;
+				OTHER_CFLAGS = (
+					"-fno-schedule-insns",
+					"-fno-schedule-insns2",
+					"-static",
+					"-findirect-virtual-calls",
+					"-mlong-branch",
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = "";
+			};
+			name = Development;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		548AD6D309CE873500241D17 /* Build configuration list for PBXProject "REAC" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				548AD6D409CE873500241D17 /* Development */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Development;
+		};
+		54D0ADA10A5E329B006380BD /* Build configuration list for PBXNativeTarget "REACDriver" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				54D0ADA20A5E329B006380BD /* Development */,
+				54D0ADA30A5E329B006380BD /* Deployment */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Development;
+		};
+		CB3CE414132BC6D300CAD028 /* Build configuration list for PBXNativeTarget "REACFloatSupport" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CB3CE413132BC6D300CAD028 /* Development */,
+			);
+			defaultConfigurationIsVisible = 0;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 089C1669FE841209C02AAC07 /* Project object */;
+}
