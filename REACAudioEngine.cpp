@@ -370,7 +370,7 @@ void REACAudioEngine::gotSamples(mbuf_t *data, int from, int to) {
     UInt8 *mbufBuffer = (UInt8 *)mbuf_data(mbuf);
     size_t mbufLength = mbuf_len(mbuf);
     
-#define next_mbuf() \
+#   define next_mbuf() \
         mbuf = mbuf_next(mbuf); \
         if (!mbuf) { \
             /* This should never happen */ \

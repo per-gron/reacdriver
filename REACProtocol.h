@@ -108,6 +108,8 @@ public:
                                        void* cookieA,
                                        void* cookieB);
 protected:
+    // Object destruction method that is used by free and initWithInterface on failure.
+    virtual void deinit();
     virtual void free();
 public:
     
@@ -136,8 +138,10 @@ protected:
     ifnet_t             interface;
     REACMode            mode;
     interface_filter_t  filterRef;
-    OSMallocTag         reacMallocTag;
     UInt16              lastCounter;
+    
+    UInt64              lastSeenConnectionCounter;
+    UInt64              connectionCounter;
     
     bool                listening;
     bool                connected;
@@ -147,6 +151,8 @@ protected:
     reac_connection_callback_t connectionCallback;
     void* cookieA;
     void* cookieB;
+    
+    static void timerFired(OSObject *target, IOTimerEventSource *sender);
     
     static void filterCommandGateMsg(OSObject *target, void* type, void* protocol, void* deviceInfo, void* audioEnginePointer);
     

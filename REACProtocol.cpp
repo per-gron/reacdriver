@@ -10,8 +10,11 @@
 #include "REACProtocol.h"
 
 #include <IOKit/IOLib.h>
+#include <IOKit/IOTimerEventSource.h>
 #include <sys/errno.h>
 
+#define REAC_CONNECTION_CHECK_TIMEOUT 400
+#define REAC_TIMEOUT_UNTIL_DISCONNECT 1000
 
 #define super OSObject
 
@@ -23,13 +26,13 @@ bool REACProtocol::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_, 
                                      reac_samples_callback_t samplesCallback_,
                                      void* cookieA_,
                                      void* cookieB_) {
-    OSMallocTag mt = OSMalloc_Tagalloc("REAC packet memory", OSMT_DEFAULT);
-    
     if (NULL == workLoop_) {
         goto Fail;
     }
     workLoop = workLoop_;
     workLoop->retain();
+    
+    // Add the command gate to the workloop
     filterCommandGate = IOCommandGate::commandGate(this, (IOCommandGate::Action)filterCommandGateMsg);
     if (NULL == filterCommandGate ||
         (workLoop->addEventSource(filterCommandGate) != kIOReturnSuccess) ) {
@@ -37,9 +40,17 @@ bool REACProtocol::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_, 
         goto Fail;
     }
     
+    // Add the timer event source to the workloop
+    connectionCounter = 0;
+    lastSeenConnectionCounter = 0;
+    timerEventSource = IOTimerEventSource::timerEventSource(this, (IOTimerEventSource::Action)&REACProtocol::timerFired);
+    if (NULL == timerEventSource) {
+        IOLog("REACProtocol::initWithInterface() - Error: Failed to create timer event source.\n");
+        goto Fail;
+    }
     
     // Hack: Pretend to be connected immediately
-    deviceInfo = (REACDeviceInfo*) OSMalloc(sizeof(REACDeviceInfo), mt);
+    deviceInfo = (REACDeviceInfo*) IOMalloc(sizeof(REACDeviceInfo));
     if (NULL == deviceInfo) {
         goto Fail;
     }
@@ -54,7 +65,6 @@ bool REACProtocol::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_, 
     listening = false;
     connected = false;
     
-    reacMallocTag = mt;
     lastCounter = 0;
     samplesCallback = samplesCallback_;
     connectionCallback = connectionCallback_;
@@ -68,18 +78,7 @@ bool REACProtocol::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_, 
     return true;
     
 Fail:
-    if (NULL != deviceInfo) {
-        OSFree(deviceInfo, sizeof(REACDeviceInfo), mt);
-    }
-    if (NULL != filterCommandGate) {
-        workLoop->removeEventSource(filterCommandGate);
-        filterCommandGate->release();
-        filterCommandGate = NULL;
-    }
-    if (NULL != workLoop) {
-        workLoop->release();
-    }
-    OSMalloc_Tagfree(mt);
+    deinit();
     return false;
 }
 
@@ -98,11 +97,11 @@ REACProtocol* REACProtocol::withInterface(IOWorkLoop *workLoop, ifnet_t interfac
     return p;
 }
 
-void REACProtocol::free() {
+void REACProtocol::deinit() {
     detach();
     
     if (NULL != deviceInfo) {
-        OSFree(deviceInfo, sizeof(REACDeviceInfo), reacMallocTag);
+        IOFree(deviceInfo, sizeof(REACDeviceInfo));
     }
     
     if (NULL != filterCommandGate) {
@@ -115,16 +114,33 @@ void REACProtocol::free() {
         workLoop->release();
     }
     
-    ifnet_release(interface);
-    OSMalloc_Tagfree(reacMallocTag);
+    if (NULL != timerEventSource) {
+        timerEventSource->cancelTimeout();
+        workLoop->removeEventSource(timerEventSource);
+        timerEventSource->release();
+        timerEventSource = NULL;
+    }
     
+    if (NULL != interface) {
+        ifnet_release(interface);
+        interface = NULL;
+    }
+}
+
+void REACProtocol::free() {
+    deinit();
     super::free();
 }
 
 
 bool REACProtocol::listen() {
-    iff_filter filter;
+    if (NULL == timerEventSource || workLoop->addEventSource(timerEventSource) != kIOReturnSuccess) {
+        IOLog("REACProtocol::listen() - Error: Failed to add timer event source to work loop!\n");
+        return false;
+    }
+    timerEventSource->setTimeoutMS(REAC_CONNECTION_CHECK_TIMEOUT);
     
+    iff_filter filter;
     filter.iff_cookie = this;
     filter.iff_name = "REAC driver input filter";
     filter.iff_protocol = 0;
@@ -145,6 +161,11 @@ bool REACProtocol::listen() {
 
 void REACProtocol::detach() {
     if (listening) {
+        if (NULL != timerEventSource) {
+            timerEventSource->cancelTimeout();
+            workLoop->removeEventSource(timerEventSource);
+        }
+        
         if (isConnected()) {
             // Announce disconnect
             if (NULL != connectionCallback) {
@@ -169,9 +190,39 @@ const REACDeviceInfo* REACProtocol::getDeviceInfo() const {
     return deviceInfo;
 }
 
+void REACProtocol::timerFired(OSObject *target, IOTimerEventSource *sender) {
+    REACProtocol *proto = OSDynamicCast(REACProtocol, target);
+    if (NULL == proto) {
+        // This should never happen
+        IOLog("REACProtocol::timerFired(): Internal error.\n");
+        return;
+    }
+    
+    if (!proto->connected) {
+        return;
+    }
+    
+    if ((proto->connectionCounter - proto->lastSeenConnectionCounter)*REAC_CONNECTION_CHECK_TIMEOUT > REAC_TIMEOUT_UNTIL_DISCONNECT) {
+        proto->connected = false;
+        if (NULL != proto->connectionCallback) {
+            proto->connectionCallback(proto, &proto->cookieA, &proto->cookieB, NULL);
+        }
+    }
+    
+    proto->connectionCounter++;
+    
+    sender->setTimeoutMS(REAC_CONNECTION_CHECK_TIMEOUT);
+}
+
 void REACProtocol::filterCommandGateMsg(OSObject *target, void *data_mbuf, void*, void*, void*) {
-    REACProtocol *proto = (REACProtocol *)target;
-    int samplesSize = REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*proto->deviceInfo->in_channels;
+    REACProtocol *proto = OSDynamicCast(REACProtocol, target);
+    if (NULL == proto) {
+        // This should never happen
+        IOLog("REACProtocol::filterCommandGateMsg(): Internal error.\n");
+        return;
+    }
+    
+    const int samplesSize = REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*proto->deviceInfo->in_channels;
     
     mbuf_t *data;
     UInt32 len;
@@ -217,6 +268,10 @@ void REACProtocol::filterCommandGateMsg(OSObject *target, void *data_mbuf, void*
             proto->connectionCallback(proto, &proto->cookieA, &proto->cookieB, proto->deviceInfo);
         }
     }
+    
+    // Save the time we got the packet, for use by REACProtocol::timerFired
+    //IOLog("AA: %llu   %llu\n", proto->lastSeenConnectionCounter, proto->connectionCounter); // TODO Debug
+    proto->lastSeenConnectionCounter = proto->connectionCounter;
     
     if (proto->connected) {
         if (NULL != proto->samplesCallback) {

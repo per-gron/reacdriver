@@ -159,12 +159,12 @@ void REACDevice::connectionCallback(REACProtocol *proto, void **cookieA, void** 
     // We need to stop the audio engine regardless of whether it's a connect or a disconnect;
     // when connecting, we want to make sure to stop any old instance just in case.
     if (NULL != engine) {
-        engine->performAudioEngineStop();
+        engine->stopAudioEngine();
         *cookieB = NULL;
     }
     
     if (NULL == deviceInfo) {
-        // IOLog("REACDevice[%p]::connectionCallback() - Disconnected.\n", device);
+        IOLog("REACDevice[%p]::connectionCallback() - Disconnected.\n", device);
     }
     else {
         // IOLog("REACDevice[%p]::connectionCallback() - Connected.\n", device);
@@ -172,7 +172,6 @@ void REACDevice::connectionCallback(REACProtocol *proto, void **cookieA, void** 
         *cookieB = (void*) device->createAudioEngine(proto);
     }
 }
-
 
 REACAudioEngine* REACDevice::createAudioEngine(REACProtocol* proto)
 {
@@ -237,6 +236,6 @@ Done:
 IOReturn REACDevice::performPowerStateChange(IOAudioDevicePowerState oldPowerState, 
                                              IOAudioDevicePowerState newPowerState, 
                                              UInt32 *microsecondsUntilComplete) {
-    // TODO. And make sure to do it in a thread safe way.
+    // TODO
     return kIOReturnSuccess;
 }
