@@ -432,8 +432,9 @@ void REACAudioEngine::timerFired(OSObject *target, IOTimerEventSource *sender) {
         SInt64            diff;
         
         if (NULL != audioEngine) {
-            if (REACProtocol::REAC_MASTER == audioEngine->protocol->getMode()) {
+            if (REACProtocol::REAC_MASTER != audioEngine->protocol->getMode()) {
                 // This should never happen.
+                IOLog("REACAudioEngine::timerFired(): Internal error.\n");
                 return;
             }
             
