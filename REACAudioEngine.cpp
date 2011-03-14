@@ -374,13 +374,13 @@ void REACAudioEngine::gotSamples(mbuf_t *data, int from, int to) {
             --mbufLength;
         }
         
-        inBuffer[0] = intermediaryBuffer[3];
+        inBuffer[0] = intermediaryBuffer[1];
         inBuffer[1] = intermediaryBuffer[0];
-        inBuffer[2] = intermediaryBuffer[1];
+        inBuffer[2] = intermediaryBuffer[3];
         
-        inBuffer[3] = intermediaryBuffer[4];
+        inBuffer[3] = intermediaryBuffer[2];
         inBuffer[4] = intermediaryBuffer[5];
-        inBuffer[5] = intermediaryBuffer[2];
+        inBuffer[5] = intermediaryBuffer[4];
         
         inBuffer += resolution*2;
     }
