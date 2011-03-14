@@ -214,6 +214,74 @@ void REACProtocol::timerFired(OSObject *target, IOTimerEventSource *sender) {
     sender->setTimeoutMS(REAC_CONNECTION_CHECK_TIMEOUT);
 }
 
+void REACProtocol::copyFromMbufToBuffer(REACDeviceInfo *di, mbuf_t *data, int from, int to, UInt8 *inBuffer, int bufferSize) {
+    const int bytesPerSample = REAC_RESOLUTION * di->in_channels;
+    const int bytesPerPacket = bytesPerSample * REAC_SAMPLES_PER_PACKET;
+    
+    UInt8 *inBufferEnd = inBuffer + bufferSize;
+    
+    if (bufferSize < bytesPerPacket) {
+        IOLog("REACProtocol::copyFromMbufToBuffer(): Got insufficiently large buffer.\n");
+        return;
+    }
+    
+    if (to-from != bytesPerPacket) {
+        IOLog("REACProtocol::copyFromMbufToBuffer(): Got packet of invalid length.\n");
+        return;
+    }
+    
+    // TODO The mbuf stuff should probably be moved to REACProtocol
+    UInt8 intermediaryBuffer[6];
+    mbuf_t mbuf = *data;
+    UInt8 *mbufBuffer = (UInt8 *)mbuf_data(mbuf);
+    size_t mbufLength = mbuf_len(mbuf);
+    
+#   define next_mbuf() \
+        mbuf = mbuf_next(mbuf); \
+        if (!mbuf) { \
+            /* This should never happen */ \
+            IOLog("REACProtocol::copyFromMbufToBuffer(): Internal error (couldn't fetch next mbuf).\n"); \
+            return; \
+        } \
+        mbufBuffer = (UInt8 *)mbuf_data(mbuf); \
+        mbufLength = mbuf_len(mbuf);
+    
+    UInt32 skip = from;
+    while (skip) {
+        if (skip >= mbufLength) {
+            skip -= mbufLength;
+            next_mbuf();
+        }
+        else {
+            mbufLength -= skip;
+            mbufBuffer += skip;
+            skip = 0;
+        }
+    }
+    
+    while (inBuffer < inBufferEnd) {
+        for (UInt32 i=0; i<sizeof(intermediaryBuffer); i++) {
+            while (0 == mbufLength) {
+                next_mbuf();
+            }
+            
+            intermediaryBuffer[i] = *mbufBuffer;
+            ++mbufBuffer;
+            --mbufLength;
+        }
+        
+        inBuffer[0] = intermediaryBuffer[1];
+        inBuffer[1] = intermediaryBuffer[0];
+        inBuffer[2] = intermediaryBuffer[3];
+        
+        inBuffer[3] = intermediaryBuffer[2];
+        inBuffer[4] = intermediaryBuffer[5];
+        inBuffer[5] = intermediaryBuffer[4];
+        
+        inBuffer += REAC_RESOLUTION*2;
+    }
+}
+
 void REACProtocol::filterCommandGateMsg(OSObject *target, void *data_mbuf, void*, void*, void*) {
     REACProtocol *proto = OSDynamicCast(REACProtocol, target);
     if (NULL == proto) {
@@ -273,10 +341,14 @@ void REACProtocol::filterCommandGateMsg(OSObject *target, void *data_mbuf, void*
     //IOLog("AA: %llu   %llu\n", proto->lastSeenConnectionCounter, proto->connectionCounter); // TODO Debug
     proto->lastSeenConnectionCounter = proto->connectionCounter;
     
-    if (proto->connected) {
-        if (NULL != proto->samplesCallback) {
-            proto->samplesCallback(proto, &proto->cookieA, &proto->cookieB,
-                                   data, sizeof(REACPacketHeader), sizeof(REACPacketHeader)+samplesSize);
+    if (proto->connected && NULL != proto->samplesCallback) {
+        UInt8* inBuffer = NULL;
+        UInt32 inBufferSize = 0;
+        proto->samplesCallback(proto, &proto->cookieA, &proto->cookieB, &inBuffer, &inBufferSize);
+        
+        if (NULL != inBuffer) {
+            REACProtocol::copyFromMbufToBuffer(proto->deviceInfo, data, sizeof(REACPacketHeader),
+                                               sizeof(REACPacketHeader)+samplesSize, inBuffer, inBufferSize);
         }
     }
     proto->processDataStream(&packetHeader);

@@ -72,7 +72,7 @@ class REACProtocol;
 // Is only called when the connection callback has indicated that there is a connection
 //   When in REAC_SLAVE mode, this function is expected to overwrite the samples parameter
 // with the output data [Note to self: if I do this, make sure that the buffer is big enough]
-typedef void(*reac_samples_callback_t)(REACProtocol *proto, void **cookieA, void **cookieB, mbuf_t *data, int from, int to);
+typedef void(*reac_samples_callback_t)(REACProtocol *proto, void **cookieA, void **cookieB, UInt8 **data, UInt32 *bufferSize);
 // Device is NULL on disconnect
 typedef void(*reac_connection_callback_t)(REACProtocol *proto, void **cookieA, void **cookieB, REACDeviceInfo *device);
 
@@ -156,6 +156,7 @@ protected:
     
     static void filterCommandGateMsg(OSObject *target, void* type, void* protocol, void* deviceInfo, void* audioEnginePointer);
     
+    static void copyFromMbufToBuffer(REACDeviceInfo *di, mbuf_t *data, int to, int from, UInt8 *inBuffer, int bufferSize);
     static errno_t filterInputFunc(void *cookie,
                                    ifnet_t interface, 
                                    protocol_family_t protocol,

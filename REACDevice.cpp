@@ -142,12 +142,12 @@ bool REACDevice::createProtocolListeners() {
     return true;
 }
 
-void REACDevice::samplesCallback(REACProtocol *proto, void **cookieA, void** cookieB, mbuf_t *data, int from, int to) {
+void REACDevice::samplesCallback(REACProtocol *proto, void **cookieA, void** cookieB, UInt8 **data, UInt32 *bufferSize) {
     // IOLog("REACDevice[%p]::samplesCallback()\n", *cookieA);
     
     REACAudioEngine *engine = (REACAudioEngine*) *cookieB;
     if (NULL != engine) {
-        engine->gotSamples(data, from, to);
+        engine->gotSamples(data, bufferSize);
     }
 }
 

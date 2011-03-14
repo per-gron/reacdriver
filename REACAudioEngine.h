@@ -77,7 +77,7 @@ public:
                                          UInt32 numSampleFrames, const IOAudioStreamFormat *streamFormat,
                                          IOAudioStream *audioStream);
     
-    void gotSamples(mbuf_t *data, int from, int to);
+    void gotSamples(UInt8 **data, UInt32 *bufferSize);
     
 protected:
     static void timerFired(OSObject *target, IOTimerEventSource *sender);

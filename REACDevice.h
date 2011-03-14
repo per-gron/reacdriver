@@ -44,7 +44,7 @@ class REACDevice : public IOAudioDevice
     virtual void stop(IOService *provider);
     virtual void free();
     virtual bool createProtocolListeners();
-    static void samplesCallback(REACProtocol *proto, void **cookieA, void** cookieB, mbuf_t *data, int from, int to);
+    static void samplesCallback(REACProtocol *proto, void **cookieA, void** cookieB, UInt8 **data, UInt32 *bufferSize);
     static void connectionCallback(REACProtocol *proto, void **cookieA, void** cookieB, REACDeviceInfo *device);
     virtual REACAudioEngine* createAudioEngine(REACProtocol* proto);
     virtual IOReturn performPowerStateChange(IOAudioDevicePowerState oldPowerState, 

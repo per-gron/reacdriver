@@ -344,76 +344,24 @@ IOReturn REACAudioEngine::performFormatChange(IOAudioStream *audioStream, const 
     return kIOReturnSuccess;
 }
 
-void REACAudioEngine::gotSamples(mbuf_t *data, int from, int to) {
+void REACAudioEngine::gotSamples(UInt8 **data, UInt32 *bufferSize) {
     if (NULL == mInBuffer) {
         // This should never happen. But better complain than crash the computer I guess
         IOLog("REACAudioEngine::gotSamples(): Internal error.\n");
         return;
     }
     
-    const int numChannels = inputStream->format.fNumChannels;
-    const int resolution = inputStream->format.fBitWidth/8;
-    const int bytesPerSample = resolution * numChannels;
-    const int bytesPerPacket = bytesPerSample * REAC_SAMPLES_PER_PACKET;
-    
-    UInt8 *inBuffer = (UInt8 *)mInBuffer + currentBlock*blockSize*bytesPerSample;
-    UInt8 *inBufferEnd = inBuffer + bytesPerPacket;
-    
-    if (to-from != bytesPerPacket) {
-        IOLog("REACAudioEngine::gotSamples(): Got packet of invalid length.\n");
+    if (inputStream->format.fNumChannels != protocol->getDeviceInfo()->in_channels ||
+        inputStream->format.fBitWidth != REAC_RESOLUTION*8) {
+        IOLog("REACAudioEngine::gotSamples(): Invalid input stream format.\n");
         return;
     }
     
-    // TODO The mbuf stuff should probably be moved to REACProtocol
-    UInt8 intermediaryBuffer[6];
-    mbuf_t mbuf = *data;
-    UInt8 *mbufBuffer = (UInt8 *)mbuf_data(mbuf);
-    size_t mbufLength = mbuf_len(mbuf);
+    const int bytesPerSample = inputStream->format.fBitWidth/8 * inputStream->format.fNumChannels;
+    const int bytesPerPacket = bytesPerSample * REAC_SAMPLES_PER_PACKET;
     
-#   define next_mbuf() \
-        mbuf = mbuf_next(mbuf); \
-        if (!mbuf) { \
-            /* This should never happen */ \
-            IOLog("REACAudioEngine::gotSamples(): Internal error (couldn't fetch next mbuf).\n"); \
-            return; \
-        } \
-        mbufBuffer = (UInt8 *)mbuf_data(mbuf); \
-        mbufLength = mbuf_len(mbuf);
-    
-    UInt32 skip = from;
-    while (skip) {
-        if (skip >= mbufLength) {
-            skip -= mbufLength;
-            next_mbuf();
-        }
-        else {
-            mbufLength -= skip;
-            mbufBuffer += skip;
-            skip = 0;
-        }
-    }
-    
-    while (inBuffer < inBufferEnd) {
-        for (UInt32 i=0; i<sizeof(intermediaryBuffer); i++) {
-            while (0 == mbufLength) {
-                next_mbuf();
-            }
-            
-            intermediaryBuffer[i] = *mbufBuffer;
-            ++mbufBuffer;
-            --mbufLength;
-        }
-        
-        inBuffer[0] = intermediaryBuffer[1];
-        inBuffer[1] = intermediaryBuffer[0];
-        inBuffer[2] = intermediaryBuffer[3];
-        
-        inBuffer[3] = intermediaryBuffer[2];
-        inBuffer[4] = intermediaryBuffer[5];
-        inBuffer[5] = intermediaryBuffer[4];
-        
-        inBuffer += resolution*2;
-    }
+    *data = (UInt8 *)mInBuffer + currentBlock*blockSize*bytesPerSample;
+    *bufferSize = bytesPerPacket;
     
     if (REACProtocol::REAC_MASTER != protocol->getMode()) {
         currentBlock++;
