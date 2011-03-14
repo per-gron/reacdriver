@@ -14,8 +14,23 @@
 
 #include "REACProtocol.h"
 
-#define BLOCK_SIZE        REAC_SAMPLES_PER_PACKET        // Sample frames
-#define NUM_BLOCKS        1024
+// The number of packets to reserve as buffer internally in the driver. Increasing
+// this number by one increases the latency by 
+// REAC_SAMPLES_PER_PACKET/REAC_SAMPLE_RATE seconds, which is 0.125ms on 96kHz.
+// 
+// This number determines how resilient the driver should be wrt uneven timing on
+// the input network packets: Delays in incoming packets or in the networking stack
+// will result in audio dropouts if the delay is bigger than
+// BUFFER_OFFSET_FACTOR/REAC_PACKETS_PER_SECOND seconds.
+//
+// TODO This really ought to be a configurable parameter.
+#define BUFFER_OFFSET_FACTOR   40
+
+// This adjusts the size of the internal audio ring buffers in the driver. It doesn't
+// affect latency, it just has to be bigger (in samples) than the CoreAudio float audio
+// ring buffer plus a constant buffer offset, yet not be as big as to take unnecessary
+// amounts of memory (memory is precious in the kernel).
+#define NUM_BLOCKS             1024
 
 #define super IOAudioEngine
 
@@ -47,7 +62,7 @@ bool REACAudioEngine::init(REACProtocol* proto, OSDictionary *properties) {
     numBlocks = (number ? number->unsigned32BitValue() : NUM_BLOCKS);
     
     number = OSDynamicCast(OSNumber, getProperty(BLOCK_SIZE_KEY));
-    blockSize = (number ? number->unsigned32BitValue() : BLOCK_SIZE);
+    blockSize = (number ? number->unsigned32BitValue() : REAC_SAMPLES_PER_PACKET);
     
     mInBuffer = mOutBuffer = NULL;
     inputStream = outputStream = NULL;
@@ -98,7 +113,7 @@ bool REACAudioEngine::initHardware(IOService *provider) {
     blockTimeoutNS /= initialSampleRate.whole;
 
     setSampleRate(&initialSampleRate);
-    setSampleOffset(blockSize);
+    setSampleOffset(blockSize*BUFFER_OFFSET_FACTOR);
     setClockIsStable(FALSE);
     
     // Set the number of sample frames in each buffer
