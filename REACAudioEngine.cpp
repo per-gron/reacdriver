@@ -328,14 +328,26 @@ void REACAudioEngine::gotSamples(UInt8 **data, UInt32 *bufferSize) {
     *bufferSize = bytesPerPacket;
     
     if (REACConnection::REAC_MASTER != protocol->getMode()) {
-        currentBlock++;
-        if (currentBlock >= numBlocks) {
-            currentBlock = 0;
-            takeTimeStamp();
-        }
+        incrementBlockCounter();
     }
 }
 
+void REACAudioEngine::getSamples(UInt8 **data, UInt32 *bufferSize) {
+    // TODO Implement me
+    
+    if (REACConnection::REAC_MASTER == protocol->getMode()) {
+        incrementBlockCounter();
+    }
+    return;
+}
+
+void REACAudioEngine::incrementBlockCounter() {
+    currentBlock++;
+    if (currentBlock >= numBlocks) {
+        currentBlock = 0;
+        takeTimeStamp();
+    }
+}
 
 
 

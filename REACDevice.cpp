@@ -110,6 +110,7 @@ bool REACDevice::createProtocolListeners() {
                                                  REACConnection::REAC_SPLIT,
                                                  &REACDevice::connectionCallback,
                                                  &REACDevice::samplesCallback,
+                                                 &REACDevice::getSamplesCallback,
                                                  this, // Cookie A (the REACAudioDevice)
                                                  NULL); // Cookie B (the REACAudioEngine)
         ifnet_release(interface);
@@ -142,15 +143,6 @@ bool REACDevice::createProtocolListeners() {
     return true;
 }
 
-void REACDevice::samplesCallback(REACConnection *proto, void **cookieA, void** cookieB, UInt8 **data, UInt32 *bufferSize) {
-    // IOLog("REACDevice[%p]::samplesCallback()\n", *cookieA);
-    
-    REACAudioEngine *engine = (REACAudioEngine*) *cookieB;
-    if (NULL != engine) {
-        engine->gotSamples(data, bufferSize);
-    }
-}
-
 void REACDevice::connectionCallback(REACConnection *proto, void **cookieA, void** cookieB, REACDeviceInfo *deviceInfo) {
     REACDevice *device = (REACDevice*) *cookieA;
     
@@ -173,7 +165,25 @@ void REACDevice::connectionCallback(REACConnection *proto, void **cookieA, void*
     }
 }
 
-REACAudioEngine* REACDevice::createAudioEngine(REACConnection* proto)
+void REACDevice::samplesCallback(REACConnection *proto, void **cookieA, void** cookieB, UInt8 **data, UInt32 *bufferSize) {
+    // IOLog("REACDevice[%p]::samplesCallback()\n", *cookieA);
+    
+    REACAudioEngine *engine = (REACAudioEngine *)*cookieB;
+    if (NULL != engine) {
+        engine->gotSamples(data, bufferSize);
+    }
+}
+
+void REACDevice::getSamplesCallback(REACConnection *proto, void **cookieA, void** cookieB, UInt8 **data, UInt32 *bufferSize) {
+    // IOLog("REACDevice[%p]::samplesCallback()\n", *cookieA);
+    
+    REACAudioEngine *engine = (REACAudioEngine *)*cookieB;
+    if (NULL != engine) {
+        engine->getSamples(data, bufferSize);
+    }
+}
+
+REACAudioEngine* REACDevice::createAudioEngine(REACConnection *proto)
 {
     OSDictionary *originalAudioEngineParams = OSDynamicCast(OSDictionary, getProperty(AUDIO_ENGINE_PARAMS_KEY));
     OSDictionary *audioEngineParams = NULL;

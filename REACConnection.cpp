@@ -24,6 +24,7 @@ OSDefineMetaClassAndStructors(REACConnection, OSObject)
 bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_, REACMode mode_,
                                        reac_connection_callback_t connectionCallback_,
                                        reac_samples_callback_t samplesCallback_,
+                                       reac_get_samples_callback_t getSamplesCallback_,
                                        void *cookieA_,
                                        void *cookieB_) {
     if (NULL == workLoop_) {
@@ -49,6 +50,11 @@ bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_
         goto Fail;
     }
     
+    dataStream = REACDataStream::with();
+    if (NULL == dataStream) {
+        goto Fail;
+    }
+    
     // Hack: Pretend to be connected immediately
     deviceInfo = (REACDeviceInfo*) IOMalloc(sizeof(REACDeviceInfo));
     if (NULL == deviceInfo) {
@@ -63,11 +69,12 @@ bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_
     deviceInfo->in_channels = 16;
     deviceInfo->out_channels = 8;
     listening = false;
-    dataStream = NULL;
+    connected = false;
     
     lastCounter = 0;
-    samplesCallback = samplesCallback_;
     connectionCallback = connectionCallback_;
+    samplesCallback = samplesCallback_;
+    getSamplesCallback = getSamplesCallback_;
     cookieA = cookieA_;
     cookieB = cookieB_;
     mode = mode_;
@@ -95,11 +102,13 @@ Fail:
 REACConnection *REACConnection::withInterface(IOWorkLoop *workLoop, ifnet_t interface, REACMode mode,
                                               reac_connection_callback_t connectionCallback,
                                               reac_samples_callback_t samplesCallback,
+                                              reac_get_samples_callback_t getSamplesCallback,
                                               void *cookieA,
                                               void *cookieB) {
     REACConnection *p = new REACConnection;
     if (NULL == p) return NULL;
-    bool result = p->initWithInterface(workLoop, interface, mode, connectionCallback, samplesCallback, cookieA, cookieB);
+    bool result = p->initWithInterface(workLoop, interface, mode, connectionCallback,
+                                       samplesCallback, getSamplesCallback, cookieA, cookieB);
     if (!result) {
         p->release();
         return NULL;
@@ -200,60 +209,6 @@ void REACConnection::detach() {
     }
 }
 
-
-IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
-    const UInt32 ending = REAC_ENDING; // TODO This is just so hacky wrt size and endianness
-    const int packetLen = sizeof(REACPacketHeader)+bufSize+REAC_ENDING_LENGTH;
-    REACPacketHeader rph;
-    mbuf_t mbuf = NULL;
-    int result = kIOReturnError;
-    
-    if (REAC_MASTER != mode || !isConnected()) {
-        result = kIOReturnInvalid;
-        goto Done;
-    }
-    
-    if (REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*deviceInfo->out_channels == bufSize) {
-        result = kIOReturnBadArgument;
-        goto Done;
-    }
-    
-    dataStream->processPacket(&rph);
-    
-    if (0 != mbuf_allocpacket(MBUF_DONTWAIT, packetLen, NULL, &mbuf)) {
-        IOLog("REACConnection::pushSamples() - Error: Failed to allocate packet mbuf.");
-        goto Done;
-    }
-    if (0 != mbuf_copyback(mbuf, 0, sizeof(REACPacketHeader), &rph, MBUF_DONTWAIT)) {
-        IOLog("REACConnection::pushSamples() - Error: Failed to copy REAC header to packet mbuf.");
-        goto Done;
-    }
-    // TODO This is incorrect; We need to shuffle around the byte order of the samples
-    if (0 != mbuf_copyback(mbuf, sizeof(REACPacketHeader), bufSize, sampleBuffer, MBUF_DONTWAIT)) {
-        IOLog("REACConnection::pushSamples() - Error: Failed to copy sample data to packet mbuf.");
-        goto Done;
-    }
-    if (0 != mbuf_copyback(mbuf, sizeof(REACPacketHeader)+bufSize, REAC_ENDING_LENGTH, &ending, MBUF_DONTWAIT)) {
-        IOLog("REACConnection::pushSamples() - Error: Failed to copy ending to packet mbuf.");
-        goto Done;
-    }
-    
-    if (0 != ifnet_output_raw(interface, 0, mbuf)) {
-        mbuf = NULL; // ifnet_output_raw always frees the mbuf
-        IOLog("REACConnection::pushSamples() - Error: Failed to send packet.");
-        goto Done;
-    }
-    
-    mbuf = NULL; // ifnet_output_raw always frees the mbuf
-    result = kIOReturnSuccess;
-Done:
-    if (NULL != mbuf) {
-        mbuf_free(mbuf);
-        mbuf = NULL;
-    }
-    return result;
-}
-
 const REACDeviceInfo *REACConnection::getDeviceInfo() const {
     return deviceInfo;
 }
@@ -269,14 +224,17 @@ void REACConnection::timerFired(OSObject *target, IOTimerEventSource *sender) {
     if (proto->isConnected()) {
         if ((proto->connectionCounter - proto->lastSeenConnectionCounter)*proto->timeoutNS >
                 (UInt64)REAC_TIMEOUT_UNTIL_DISCONNECT*1000000) {
-            proto->dataStream->release();
-            proto->dataStream = NULL;
+            proto->connected = true;
             if (NULL != proto->connectionCallback) {
                 proto->connectionCallback(proto, &proto->cookieA, &proto->cookieB, NULL);
             }
         }
         
         proto->connectionCounter++;
+    }
+    
+    if (REAC_MASTER == proto->mode) {
+        proto->getAndPushSamples();
     }
     
     // Calculate next time to fire, by taking the time and comparing it to the time we requested.                                 
@@ -358,6 +316,71 @@ void REACConnection::copyFromMbufToBuffer(REACDeviceInfo *di, mbuf_t *data, int 
     }
 }
 
+IOReturn REACConnection::getAndPushSamples() {
+    UInt8 *sampleBuffer = NULL;
+    UInt32 bufSize = 0;
+    if (getSamplesCallback) {
+        getSamplesCallback(this, &cookieA, &cookieB, &sampleBuffer, &bufSize);
+    }
+    return pushSamples(bufSize, sampleBuffer);
+}
+
+IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
+    // TODO Handle the case when bufSize == 0 and sampleBuffer == NULL.
+    
+    const UInt32 ending = REAC_ENDING; // TODO This is just so hacky wrt size and endianness
+    const int packetLen = sizeof(REACPacketHeader)+bufSize+REAC_ENDING_LENGTH;
+    REACPacketHeader rph;
+    mbuf_t mbuf = NULL;
+    int result = kIOReturnError;
+    
+    if (!(REAC_SLAVE == mode || REAC_MASTER == mode)) {
+        result = kIOReturnInvalid;
+        goto Done;
+    }
+    
+    if (REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*deviceInfo->out_channels == bufSize) {
+        result = kIOReturnBadArgument;
+        goto Done;
+    }
+    
+    dataStream->processPacket(&rph);
+    
+    if (0 != mbuf_allocpacket(MBUF_DONTWAIT, packetLen, NULL, &mbuf)) {
+        IOLog("REACConnection::pushSamples() - Error: Failed to allocate packet mbuf.");
+        goto Done;
+    }
+    if (0 != mbuf_copyback(mbuf, 0, sizeof(REACPacketHeader), &rph, MBUF_DONTWAIT)) {
+        IOLog("REACConnection::pushSamples() - Error: Failed to copy REAC header to packet mbuf.");
+        goto Done;
+    }
+    // TODO This is incorrect; We need to shuffle around the byte order of the samples
+    if (0 != mbuf_copyback(mbuf, sizeof(REACPacketHeader), bufSize, sampleBuffer, MBUF_DONTWAIT)) {
+        IOLog("REACConnection::pushSamples() - Error: Failed to copy sample data to packet mbuf.");
+        goto Done;
+    }
+    // TODO Invent a better way to handle REAC_ENDING
+    if (0 != mbuf_copyback(mbuf, sizeof(REACPacketHeader)+bufSize, REAC_ENDING_LENGTH, &ending, MBUF_DONTWAIT)) {
+        IOLog("REACConnection::pushSamples() - Error: Failed to copy ending to packet mbuf.");
+        goto Done;
+    }
+    
+    if (0 != ifnet_output_raw(interface, 0, mbuf)) {
+        mbuf = NULL; // ifnet_output_raw always frees the mbuf
+        IOLog("REACConnection::pushSamples() - Error: Failed to send packet.");
+        goto Done;
+    }
+    
+    mbuf = NULL; // ifnet_output_raw always frees the mbuf
+    result = kIOReturnSuccess;
+Done:
+    if (NULL != mbuf) {
+        mbuf_free(mbuf);
+        mbuf = NULL;
+    }
+    return result;
+}
+
 void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, void*, void*, void*) {
     REACConnection *proto = OSDynamicCast(REACConnection, target);
     if (NULL == proto) {
@@ -407,7 +430,7 @@ void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, voi
     
     // Hack: Announce connect
     if (!proto->isConnected()) {
-        proto->dataStream = REACDataStream::with();
+        proto->connected = true;
         if (NULL != proto->connectionCallback) {
             proto->connectionCallback(proto, &proto->cookieA, &proto->cookieB, proto->deviceInfo);
         }
@@ -416,17 +439,24 @@ void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, voi
     // Save the time we got the packet, for use by REACConnection::timerFired
     proto->lastSeenConnectionCounter = proto->connectionCounter;
     
-    if (proto->isConnected() && NULL != proto->samplesCallback) {
-        UInt8* inBuffer = NULL;
-        UInt32 inBufferSize = 0;
-        proto->samplesCallback(proto, &proto->cookieA, &proto->cookieB, &inBuffer, &inBufferSize);
-        
-        if (NULL != inBuffer) {
-            REACConnection::copyFromMbufToBuffer(proto->deviceInfo, data, sizeof(REACPacketHeader),
-                                               sizeof(REACPacketHeader)+samplesSize, inBuffer, inBufferSize);
+    
+    if (proto->isConnected()) {
+        if (NULL != proto->samplesCallback) {
+            UInt8* inBuffer = NULL;
+            UInt32 inBufferSize = 0;
+            proto->samplesCallback(proto, &proto->cookieA, &proto->cookieB, &inBuffer, &inBufferSize);
+            
+            if (NULL != inBuffer) {
+                REACConnection::copyFromMbufToBuffer(proto->deviceInfo, data, sizeof(REACPacketHeader),
+                                                     sizeof(REACPacketHeader)+samplesSize, inBuffer, inBufferSize);
+            }
+            
+            proto->dataStream->gotPacket(&packetHeader);
         }
         
-        proto->dataStream->gotPacket(&packetHeader);
+        if (REAC_SLAVE == proto->mode) {
+            proto->getAndPushSamples();
+        }
     }
     
     proto->lastCounter = packetHeader.counter;

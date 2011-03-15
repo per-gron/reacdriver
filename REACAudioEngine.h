@@ -73,8 +73,11 @@ public:
                                          IOAudioStream *audioStream);
     
     void gotSamples(UInt8 **data, UInt32 *bufferSize);
+    void getSamples(UInt8 **data, UInt32 *bufferSize);
     
 protected:
+    void incrementBlockCounter();
+    
     virtual bool initControls();
     
     static  IOReturn volumeChangeHandler(IOService *target, IOAudioControl *volumeControl, SInt32 oldValue, SInt32 newValue);
