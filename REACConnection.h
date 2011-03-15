@@ -12,12 +12,11 @@
 
 #include <IOKit/audio/IOAudioDevice.h>
 #include <IOKit/IOCommandGate.h>
-
-#include <libkern/OSMalloc.h>
 #include <net/kpi_interface.h>
 #include <sys/kpi_mbuf.h>
 #include <net/kpi_interfacefilter.h>
 
+#include "REACDataStream.h"
 
 #define REAC_MAX_CHANNEL_COUNT 40
 #define REAC_PACKETS_PER_SECOND 8000
@@ -32,7 +31,6 @@
 
 
 #define EthernetHeader				com_pereckerdal_driver_EthernetHeader
-#define REACPacketHeader            com_pereckerdal_driver_REACPacketHeader
 #define REACDeviceInfo              com_pereckerdal_driver_REACDeviceInfo
 #define REACConnection              com_pereckerdal_driver_REACConnection
 
@@ -42,13 +40,6 @@ struct EthernetHeader {
 	UInt8 dhost[ETHER_ADDR_LEN]; /* Destination host address */
 	UInt8 shost[ETHER_ADDR_LEN]; /* Source host address */
 	UInt16 type; /* IP? ARP? RARP? etc */
-};
-
-/* REAC packet header */
-struct REACPacketHeader {
-    UInt16 counter;
-    UInt16 type;
-    UInt16 data[16];
 };
 
 struct REACDeviceInfo {
@@ -78,13 +69,6 @@ class REACConnection : public OSObject {
 public:
     enum REACMode {
         REAC_MASTER, REAC_SLAVE, REAC_SPLIT
-    };
-    
-    enum REACStreamType { // TODO Endianness?
-        REAC_STREAM_FILLER = 0,
-        REAC_STREAM_CONTROL = 0xeacd,
-        REAC_STREAM_CONTROL2 = 0xeacf,
-        REAC_STREAM_FROM_SPLIT = 0xeace
     };
     
     virtual bool initWithInterface(IOWorkLoop* workLoop, ifnet_t interface, REACMode mode,
@@ -161,7 +145,6 @@ protected:
                                    ifnet_t interface); 
     
     void processDataStream(const REACPacketHeader* packet);
-    bool checkChecksum(const REACPacketHeader* packet) const; // For data stream packets
     
 };
 

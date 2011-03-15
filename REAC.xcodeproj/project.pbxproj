@@ -21,6 +21,8 @@
 		CB3CE420132CB04B00CAD028 /* PCMBlitterLib.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB3CE41C132CB04A00CAD028 /* PCMBlitterLib.cpp */; };
 		CB3CE422132CB0CA00CAD028 /* FPU.h in Headers */ = {isa = PBXBuildFile; fileRef = CB3CE421132CB0CA00CAD028 /* FPU.h */; };
 		CB3CE424132E008E00CAD028 /* libREACFloatSupport.a in Frameworks */ = {isa = PBXBuildFile; fileRef = CB3CE412132BC6D300CAD028 /* libREACFloatSupport.a */; };
+		CB713671132F5B1A001686C9 /* REACDataStream.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB71366F132F5B1A001686C9 /* REACDataStream.cpp */; };
+		CB713672132F5B1A001686C9 /* REACDataStream.h in Headers */ = {isa = PBXBuildFile; fileRef = CB713670132F5B1A001686C9 /* REACDataStream.h */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -50,6 +52,8 @@
 		CB3CE41B132CB04A00CAD028 /* PCMBlitterLib.exp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.exports; path = PCMBlitterLib.exp; sourceTree = "<group>"; };
 		CB3CE41C132CB04A00CAD028 /* PCMBlitterLib.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PCMBlitterLib.cpp; sourceTree = "<group>"; };
 		CB3CE421132CB0CA00CAD028 /* FPU.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FPU.h; sourceTree = "<group>"; };
+		CB71366F132F5B1A001686C9 /* REACDataStream.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = REACDataStream.cpp; sourceTree = "<group>"; };
+		CB713670132F5B1A001686C9 /* REACDataStream.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = REACDataStream.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -114,6 +118,8 @@
 				CB3CE41A132CB04A00CAD028 /* PCMBlitterLib.h */,
 				CB3CE41B132CB04A00CAD028 /* PCMBlitterLib.exp */,
 				CB3CE41C132CB04A00CAD028 /* PCMBlitterLib.cpp */,
+				CB71366F132F5B1A001686C9 /* REACDataStream.cpp */,
+				CB713670132F5B1A001686C9 /* REACDataStream.h */,
 			);
 			name = Source;
 			sourceTree = "<group>";
@@ -128,6 +134,7 @@
 				54D0AD960A5E329B006380BD /* REACDevice.h in Headers */,
 				54D0AD970A5E329B006380BD /* REACAudioEngine.h in Headers */,
 				CB102B9912D0D5FE00231CE9 /* REACConnection.h in Headers */,
+				CB713672132F5B1A001686C9 /* REACDataStream.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -236,6 +243,7 @@
 				54D0AD9D0A5E329B006380BD /* REACDevice.cpp in Sources */,
 				CB102B9A12D0D5FE00231CE9 /* REACConnection.cpp in Sources */,
 				CB102BF312D0F64B00231CE9 /* REACAudioClip.cpp in Sources */,
+				CB713671132F5B1A001686C9 /* REACDataStream.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
