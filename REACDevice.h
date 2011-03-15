@@ -7,13 +7,12 @@
 
 #include <IOKit/audio/IOAudioDevice.h>
 
-#include "REACProtocol.h"
+#include "REACConnection.h"
 
 #define AUDIO_ENGINE_PARAMS_KEY         "AudioEngineParams"
 #define INTERFACES_KEY                  "Interfaces"
 #define INTERFACE_NAME_KEY              "Name"
 #define DESCRIPTION_KEY                 "Description"
-#define REAC_PROTOCOL_KEY               "REACProtocol"
 #define BLOCK_SIZE_KEY                  "BlockSize"
 #define NUM_BLOCKS_KEY                  "NumBlocks"
 #define BUFFER_OFFSET_FACTOR_KEY        "BufferOffsetFactor"
@@ -44,9 +43,9 @@ class REACDevice : public IOAudioDevice
     virtual void stop(IOService *provider);
     virtual void free();
     virtual bool createProtocolListeners();
-    static void samplesCallback(REACProtocol *proto, void **cookieA, void** cookieB, UInt8 **data, UInt32 *bufferSize);
-    static void connectionCallback(REACProtocol *proto, void **cookieA, void** cookieB, REACDeviceInfo *device);
-    virtual REACAudioEngine* createAudioEngine(REACProtocol* proto);
+    static void samplesCallback(REACConnection *proto, void **cookieA, void** cookieB, UInt8 **data, UInt32 *bufferSize);
+    static void connectionCallback(REACConnection *proto, void **cookieA, void** cookieB, REACDeviceInfo *device);
+    virtual REACAudioEngine* createAudioEngine(REACConnection* proto);
     virtual IOReturn performPowerStateChange(IOAudioDevicePowerState oldPowerState, 
                                              IOAudioDevicePowerState newPowerState,
                                              UInt32 *microsecondsUntilComplete);

@@ -12,7 +12,7 @@
 #include <IOKit/IOWorkLoop.h>
 #include <IOKit/IOTimerEventSource.h>
 
-#include "REACProtocol.h"
+#include "REACConnection.h"
 
 // The number of packets to reserve as buffer internally in the driver. Increasing
 // this number by one increases the latency by 
@@ -42,7 +42,7 @@ const SInt32 REACAudioEngine::kVolumeMax = 65535;
 const SInt32 REACAudioEngine::kGainMax = 65535;
 
 
-bool REACAudioEngine::init(REACProtocol* proto, OSDictionary *properties) {
+bool REACAudioEngine::init(REACConnection* proto, OSDictionary *properties) {
     bool result = false;
     OSNumber *number = NULL;
     
@@ -285,7 +285,7 @@ IOReturn REACAudioEngine::performAudioEngineStart() {
     takeTimeStamp(false);
     currentBlock = 0;
     
-    if (REACProtocol::REAC_MASTER == protocol->getMode()) {
+    if (REACConnection::REAC_MASTER == protocol->getMode()) {
         timerEventSource->setTimeout(blockTimeoutNS);
         
         uint64_t time;
@@ -363,7 +363,7 @@ void REACAudioEngine::gotSamples(UInt8 **data, UInt32 *bufferSize) {
     *data = (UInt8 *)mInBuffer + currentBlock*blockSize*bytesPerSample;
     *bufferSize = bytesPerPacket;
     
-    if (REACProtocol::REAC_MASTER != protocol->getMode()) {
+    if (REACConnection::REAC_MASTER != protocol->getMode()) {
         currentBlock++;
         if (currentBlock >= numBlocks) {
             currentBlock = 0;
@@ -380,7 +380,7 @@ void REACAudioEngine::timerFired(OSObject *target, IOTimerEventSource *sender) {
         SInt64            diff;
         
         if (NULL != audioEngine) {
-            if (REACProtocol::REAC_MASTER != audioEngine->protocol->getMode()) {
+            if (REACConnection::REAC_MASTER != audioEngine->protocol->getMode()) {
                 // This should never happen.
                 IOLog("REACAudioEngine::timerFired(): Internal error.\n");
                 return;

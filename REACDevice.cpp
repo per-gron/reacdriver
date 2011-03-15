@@ -91,7 +91,7 @@ bool REACDevice::createProtocolListeners() {
     
     while ((interfaceDict = (OSDictionary*)interfaceIterator->getNextObject())) {
         OSString       *ifname = OSDynamicCast(OSString, interfaceDict->getObject(INTERFACE_NAME_KEY));
-		REACProtocol   *protocol = NULL;
+		REACConnection *protocol = NULL;
         ifnet_t interface;
         
         if (NULL == ifname) {
@@ -105,9 +105,9 @@ bool REACDevice::createProtocolListeners() {
             goto Next;
         }
         
-        protocol = REACProtocol::withInterface(getWorkLoop(),
+        protocol = REACConnection::withInterface(getWorkLoop(),
                                                interface,
-                                               REACProtocol::REAC_SPLIT,
+                                               REACConnection::REAC_SPLIT,
                                                &REACDevice::connectionCallback,
                                                &REACDevice::samplesCallback,
                                                this, // Cookie A (the REACAudioDevice)
@@ -142,7 +142,7 @@ bool REACDevice::createProtocolListeners() {
     return true;
 }
 
-void REACDevice::samplesCallback(REACProtocol *proto, void **cookieA, void** cookieB, UInt8 **data, UInt32 *bufferSize) {
+void REACDevice::samplesCallback(REACConnection *proto, void **cookieA, void** cookieB, UInt8 **data, UInt32 *bufferSize) {
     // IOLog("REACDevice[%p]::samplesCallback()\n", *cookieA);
     
     REACAudioEngine *engine = (REACAudioEngine*) *cookieB;
@@ -151,7 +151,7 @@ void REACDevice::samplesCallback(REACProtocol *proto, void **cookieA, void** coo
     }
 }
 
-void REACDevice::connectionCallback(REACProtocol *proto, void **cookieA, void** cookieB, REACDeviceInfo *deviceInfo) {
+void REACDevice::connectionCallback(REACConnection *proto, void **cookieA, void** cookieB, REACDeviceInfo *deviceInfo) {
     REACDevice *device = (REACDevice*) *cookieA;
     
     REACAudioEngine *engine = (REACAudioEngine*) *cookieB;
@@ -173,7 +173,7 @@ void REACDevice::connectionCallback(REACProtocol *proto, void **cookieA, void** 
     }
 }
 
-REACAudioEngine* REACDevice::createAudioEngine(REACProtocol* proto)
+REACAudioEngine* REACDevice::createAudioEngine(REACConnection* proto)
 {
     OSDictionary *originalAudioEngineParams = OSDynamicCast(OSDictionary, getProperty(AUDIO_ENGINE_PARAMS_KEY));
     OSDictionary *audioEngineParams = NULL;

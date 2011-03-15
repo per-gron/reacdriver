@@ -11,8 +11,8 @@
 		54D0AD970A5E329B006380BD /* REACAudioEngine.h in Headers */ = {isa = PBXBuildFile; fileRef = C93407630601317E002E6A19 /* REACAudioEngine.h */; };
 		54D0AD9B0A5E329B006380BD /* REACAudioEngine.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C93407640601317E002E6A19 /* REACAudioEngine.cpp */; };
 		54D0AD9D0A5E329B006380BD /* REACDevice.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C93407660601317E002E6A19 /* REACDevice.cpp */; };
-		CB102B9912D0D5FE00231CE9 /* REACProtocol.h in Headers */ = {isa = PBXBuildFile; fileRef = CB102B9712D0D5FE00231CE9 /* REACProtocol.h */; };
-		CB102B9A12D0D5FE00231CE9 /* REACProtocol.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB102B9812D0D5FE00231CE9 /* REACProtocol.cpp */; };
+		CB102B9912D0D5FE00231CE9 /* REACConnection.h in Headers */ = {isa = PBXBuildFile; fileRef = CB102B9712D0D5FE00231CE9 /* REACConnection.h */; };
+		CB102B9A12D0D5FE00231CE9 /* REACConnection.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB102B9812D0D5FE00231CE9 /* REACConnection.cpp */; };
 		CB102BF312D0F64B00231CE9 /* REACAudioClip.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB102BF112D0F64B00231CE9 /* REACAudioClip.cpp */; };
 		CB3CE415132BC6FF00CAD028 /* REACAudioClip.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB102BF112D0F64B00231CE9 /* REACAudioClip.cpp */; };
 		CB3CE418132BC75100CAD028 /* libREACFloatSupport.a in Headers */ = {isa = PBXBuildFile; fileRef = CB3CE412132BC6D300CAD028 /* libREACFloatSupport.a */; };
@@ -41,8 +41,8 @@
 		C93407630601317E002E6A19 /* REACAudioEngine.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = REACAudioEngine.h; sourceTree = "<group>"; };
 		C93407640601317E002E6A19 /* REACAudioEngine.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = REACAudioEngine.cpp; sourceTree = "<group>"; };
 		C93407660601317E002E6A19 /* REACDevice.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = REACDevice.cpp; sourceTree = "<group>"; };
-		CB102B9712D0D5FE00231CE9 /* REACProtocol.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = REACProtocol.h; sourceTree = "<group>"; };
-		CB102B9812D0D5FE00231CE9 /* REACProtocol.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = REACProtocol.cpp; sourceTree = "<group>"; };
+		CB102B9712D0D5FE00231CE9 /* REACConnection.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = REACConnection.h; sourceTree = "<group>"; };
+		CB102B9812D0D5FE00231CE9 /* REACConnection.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = REACConnection.cpp; sourceTree = "<group>"; };
 		CB102BF112D0F64B00231CE9 /* REACAudioClip.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = REACAudioClip.cpp; sourceTree = "<group>"; };
 		CB3CE412132BC6D300CAD028 /* libREACFloatSupport.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libREACFloatSupport.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		CB3CE419132CB04A00CAD028 /* PCMBlitterLibTest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PCMBlitterLibTest.cpp; sourceTree = "<group>"; };
@@ -106,8 +106,8 @@
 				C93407660601317E002E6A19 /* REACDevice.cpp */,
 				C93407630601317E002E6A19 /* REACAudioEngine.h */,
 				C93407640601317E002E6A19 /* REACAudioEngine.cpp */,
-				CB102B9712D0D5FE00231CE9 /* REACProtocol.h */,
-				CB102B9812D0D5FE00231CE9 /* REACProtocol.cpp */,
+				CB102B9712D0D5FE00231CE9 /* REACConnection.h */,
+				CB102B9812D0D5FE00231CE9 /* REACConnection.cpp */,
 				CB102BF112D0F64B00231CE9 /* REACAudioClip.cpp */,
 				CB3CE421132CB0CA00CAD028 /* FPU.h */,
 				CB3CE419132CB04A00CAD028 /* PCMBlitterLibTest.cpp */,
@@ -127,7 +127,7 @@
 			files = (
 				54D0AD960A5E329B006380BD /* REACDevice.h in Headers */,
 				54D0AD970A5E329B006380BD /* REACAudioEngine.h in Headers */,
-				CB102B9912D0D5FE00231CE9 /* REACProtocol.h in Headers */,
+				CB102B9912D0D5FE00231CE9 /* REACConnection.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -234,7 +234,7 @@
 			files = (
 				54D0AD9B0A5E329B006380BD /* REACAudioEngine.cpp in Sources */,
 				54D0AD9D0A5E329B006380BD /* REACDevice.cpp in Sources */,
-				CB102B9A12D0D5FE00231CE9 /* REACProtocol.cpp in Sources */,
+				CB102B9A12D0D5FE00231CE9 /* REACConnection.cpp in Sources */,
 				CB102BF312D0F64B00231CE9 /* REACAudioClip.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -390,6 +390,7 @@
 				CB3CE413132BC6D300CAD028 /* Development */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Development;
 		};
 /* End XCConfigurationList section */
 	};

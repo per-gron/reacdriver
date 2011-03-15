@@ -1,5 +1,5 @@
 /*
- *  REACProtocol.cpp
+ *  REACConnection.cpp
  *  REAC
  *
  *  Created by Per Eckerdal on 02/01/2011.
@@ -7,7 +7,7 @@
  *
  */
 
-#include "REACProtocol.h"
+#include "REACConnection.h"
 
 #include <IOKit/IOLib.h>
 #include <IOKit/IOTimerEventSource.h>
@@ -18,14 +18,14 @@
 
 #define super OSObject
 
-OSDefineMetaClassAndStructors(REACProtocol, OSObject)
+OSDefineMetaClassAndStructors(REACConnection, OSObject)
 
 
-bool REACProtocol::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_, REACMode mode_,
-                                     reac_connection_callback_t connectionCallback_,
-                                     reac_samples_callback_t samplesCallback_,
-                                     void* cookieA_,
-                                     void* cookieB_) {
+bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_, REACMode mode_,
+                                       reac_connection_callback_t connectionCallback_,
+                                       reac_samples_callback_t samplesCallback_,
+                                       void* cookieA_,
+                                       void* cookieB_) {
     if (NULL == workLoop_) {
         goto Fail;
     }
@@ -36,16 +36,16 @@ bool REACProtocol::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_, 
     filterCommandGate = IOCommandGate::commandGate(this, (IOCommandGate::Action)filterCommandGateMsg);
     if (NULL == filterCommandGate ||
         (workLoop->addEventSource(filterCommandGate) != kIOReturnSuccess) ) {
-        IOLog("REACProtocol::initWithInterface() - Error: Can't create or add commandGate\n");
+        IOLog("REACConnection::initWithInterface() - Error: Can't create or add commandGate\n");
         goto Fail;
     }
     
     // Add the timer event source to the workloop
     connectionCounter = 0;
     lastSeenConnectionCounter = 0;
-    timerEventSource = IOTimerEventSource::timerEventSource(this, (IOTimerEventSource::Action)&REACProtocol::timerFired);
+    timerEventSource = IOTimerEventSource::timerEventSource(this, (IOTimerEventSource::Action)&REACConnection::timerFired);
     if (NULL == timerEventSource) {
-        IOLog("REACProtocol::initWithInterface() - Error: Failed to create timer event source.\n");
+        IOLog("REACConnection::initWithInterface() - Error: Failed to create timer event source.\n");
         goto Fail;
     }
     
@@ -82,12 +82,12 @@ Fail:
     return false;
 }
 
-REACProtocol* REACProtocol::withInterface(IOWorkLoop *workLoop, ifnet_t interface, REACMode mode,
-                                          reac_connection_callback_t connectionCallback,
-                                          reac_samples_callback_t samplesCallback,
-                                          void* cookieA,
-                                          void* cookieB) {
-    REACProtocol* p = new REACProtocol;
+REACConnection* REACConnection::withInterface(IOWorkLoop *workLoop, ifnet_t interface, REACMode mode,
+                                              reac_connection_callback_t connectionCallback,
+                                              reac_samples_callback_t samplesCallback,
+                                              void* cookieA,
+                                              void* cookieB) {
+    REACConnection* p = new REACConnection;
     if (NULL == p) return NULL;
     bool result = p->initWithInterface(workLoop, interface, mode, connectionCallback, samplesCallback, cookieA, cookieB);
     if (!result) {
@@ -97,7 +97,7 @@ REACProtocol* REACProtocol::withInterface(IOWorkLoop *workLoop, ifnet_t interfac
     return p;
 }
 
-void REACProtocol::deinit() {
+void REACConnection::deinit() {
     detach();
     
     if (NULL != deviceInfo) {
@@ -127,15 +127,15 @@ void REACProtocol::deinit() {
     }
 }
 
-void REACProtocol::free() {
+void REACConnection::free() {
     deinit();
     super::free();
 }
 
 
-bool REACProtocol::listen() {
+bool REACConnection::listen() {
     if (NULL == timerEventSource || workLoop->addEventSource(timerEventSource) != kIOReturnSuccess) {
-        IOLog("REACProtocol::listen() - Error: Failed to add timer event source to work loop!\n");
+        IOLog("REACConnection::listen() - Error: Failed to add timer event source to work loop!\n");
         return false;
     }
     timerEventSource->setTimeoutMS(REAC_CONNECTION_CHECK_TIMEOUT);
@@ -144,11 +144,11 @@ bool REACProtocol::listen() {
     filter.iff_cookie = this;
     filter.iff_name = "REAC driver input filter";
     filter.iff_protocol = 0;
-    filter.iff_input = &REACProtocol::filterInputFunc;
+    filter.iff_input = &REACConnection::filterInputFunc;
     filter.iff_output = NULL;
     filter.iff_event = NULL;
     filter.iff_ioctl = NULL;
-    filter.iff_detached = &REACProtocol::filterDetachedFunc;
+    filter.iff_detached = &REACConnection::filterDetachedFunc;
     
     if (0 != iflt_attach(interface, &filter, &filterRef)) {
         return false;
@@ -159,7 +159,7 @@ bool REACProtocol::listen() {
     return true;
 }
 
-void REACProtocol::detach() {
+void REACConnection::detach() {
     if (listening) {
         if (NULL != timerEventSource) {
             timerEventSource->cancelTimeout();
@@ -179,22 +179,61 @@ void REACProtocol::detach() {
 }
 
 
-errno_t REACProtocol::pushSamples(int numSamples, UInt8 *samples) {
-    if (!(REAC_MASTER == mode || REAC_SLAVE == mode) || REAC_SAMPLES_PER_PACKET != numSamples)
+IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
+    int result = kIOReturnError;
+    
+    if (REAC_MASTER != mode ||
+        REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*deviceInfo->out_channels == bufSize)
         return EINVAL;
     
-    return ENOSYS;
+    const int packetLen = sizeof(REACPacketHeader)+bufSize+REAC_ENDING_LENGTH;
+    
+    REACPacketHeader rph;
+    UInt32 ending = REAC_ENDING; // TODO This is just so hacky wrt size and endianness
+    
+    mbuf_t mbuf = NULL;
+    if (0 != mbuf_allocpacket(MBUF_DONTWAIT, packetLen, NULL, &mbuf)) {
+        IOLog("REACConnection::pushSamples() - Error: Failed to allocate packet mbuf.");
+        goto Done;
+    }
+    if (0 != mbuf_copyback(mbuf, 0, sizeof(REACPacketHeader), &rph, MBUF_DONTWAIT)) {
+        IOLog("REACConnection::pushSamples() - Error: Failed to copy REAC header to packet mbuf.");
+        goto Done;
+    }
+    if (0 != mbuf_copyback(mbuf, sizeof(REACPacketHeader), bufSize, sampleBuffer, MBUF_DONTWAIT)) {
+        IOLog("REACConnection::pushSamples() - Error: Failed to copy sample data to packet mbuf.");
+        goto Done;
+    }
+    if (0 != mbuf_copyback(mbuf, sizeof(REACPacketHeader)+bufSize, REAC_ENDING_LENGTH, &ending, MBUF_DONTWAIT)) {
+        IOLog("REACConnection::pushSamples() - Error: Failed to copy ending to packet mbuf.");
+        goto Done;
+    }
+    
+    if (0 != ifnet_output_raw(interface, 0, mbuf)) {
+        mbuf = NULL; // ifnet_output_raw always frees the mbuf
+        IOLog("REACConnection::pushSamples() - Error: Failed to send packet.");
+        goto Done;
+    }
+    
+    mbuf = NULL; // ifnet_output_raw always frees the mbuf
+    result = kIOReturnSuccess;
+Done:
+    if (NULL != mbuf) {
+        mbuf_free(mbuf);
+        mbuf = NULL;
+    }
+    return result;
 }
 
-const REACDeviceInfo* REACProtocol::getDeviceInfo() const {
+const REACDeviceInfo* REACConnection::getDeviceInfo() const {
     return deviceInfo;
 }
 
-void REACProtocol::timerFired(OSObject *target, IOTimerEventSource *sender) {
-    REACProtocol *proto = OSDynamicCast(REACProtocol, target);
+void REACConnection::timerFired(OSObject *target, IOTimerEventSource *sender) {
+    REACConnection *proto = OSDynamicCast(REACConnection, target);
     if (NULL == proto) {
         // This should never happen
-        IOLog("REACProtocol::timerFired(): Internal error.\n");
+        IOLog("REACConnection::timerFired(): Internal error.\n");
         return;
     }
     
@@ -214,23 +253,22 @@ void REACProtocol::timerFired(OSObject *target, IOTimerEventSource *sender) {
     sender->setTimeoutMS(REAC_CONNECTION_CHECK_TIMEOUT);
 }
 
-void REACProtocol::copyFromMbufToBuffer(REACDeviceInfo *di, mbuf_t *data, int from, int to, UInt8 *inBuffer, int bufferSize) {
+void REACConnection::copyFromMbufToBuffer(REACDeviceInfo *di, mbuf_t *data, int from, int to, UInt8 *inBuffer, int bufferSize) {
     const int bytesPerSample = REAC_RESOLUTION * di->in_channels;
     const int bytesPerPacket = bytesPerSample * REAC_SAMPLES_PER_PACKET;
     
     UInt8 *inBufferEnd = inBuffer + bufferSize;
     
     if (bufferSize < bytesPerPacket) {
-        IOLog("REACProtocol::copyFromMbufToBuffer(): Got insufficiently large buffer.\n");
+        IOLog("REACConnection::copyFromMbufToBuffer(): Got insufficiently large buffer.\n");
         return;
     }
     
     if (to-from != bytesPerPacket) {
-        IOLog("REACProtocol::copyFromMbufToBuffer(): Got packet of invalid length.\n");
+        IOLog("REACConnection::copyFromMbufToBuffer(): Got packet of invalid length.\n");
         return;
     }
     
-    // TODO The mbuf stuff should probably be moved to REACProtocol
     UInt8 intermediaryBuffer[6];
     mbuf_t mbuf = *data;
     UInt8 *mbufBuffer = (UInt8 *)mbuf_data(mbuf);
@@ -240,7 +278,7 @@ void REACProtocol::copyFromMbufToBuffer(REACDeviceInfo *di, mbuf_t *data, int fr
         mbuf = mbuf_next(mbuf); \
         if (!mbuf) { \
             /* This should never happen */ \
-            IOLog("REACProtocol::copyFromMbufToBuffer(): Internal error (couldn't fetch next mbuf).\n"); \
+            IOLog("REACConnection::copyFromMbufToBuffer(): Internal error (couldn't fetch next mbuf).\n"); \
             return; \
         } \
         mbufBuffer = (UInt8 *)mbuf_data(mbuf); \
@@ -282,11 +320,11 @@ void REACProtocol::copyFromMbufToBuffer(REACDeviceInfo *di, mbuf_t *data, int fr
     }
 }
 
-void REACProtocol::filterCommandGateMsg(OSObject *target, void *data_mbuf, void*, void*, void*) {
-    REACProtocol *proto = OSDynamicCast(REACProtocol, target);
+void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, void*, void*, void*) {
+    REACConnection *proto = OSDynamicCast(REACConnection, target);
     if (NULL == proto) {
         // This should never happen
-        IOLog("REACProtocol::filterCommandGateMsg(): Internal error.\n");
+        IOLog("REACConnection::filterCommandGateMsg(): Internal error.\n");
         return;
     }
     
@@ -305,12 +343,12 @@ void REACProtocol::filterCommandGateMsg(OSObject *target, void *data_mbuf, void*
     } while ((dataToCalcLength = mbuf_next(dataToCalcLength)));
     
     if (sizeof(REACPacketHeader)+samplesSize+sizeof(UInt16) != len) {
-        IOLog("REACProtocol[%p]::filterCommandGateMsg(): Got packet of invalid length\n", proto);
+        IOLog("REACConnection[%p]::filterCommandGateMsg(): Got packet of invalid length\n", proto);
         return;
     }
     
     if (0 != mbuf_copydata(*data, 0, sizeof(REACPacketHeader), &packetHeader)) {
-        IOLog("REACProtocol[%p]::filterCommandGateMsg(): Failed to fetch REAC packet header\n", proto);
+        IOLog("REACConnection[%p]::filterCommandGateMsg(): Failed to fetch REAC packet header\n", proto);
         return;
     }
     
@@ -324,7 +362,7 @@ void REACProtocol::filterCommandGateMsg(OSObject *target, void *data_mbuf, void*
     
     if (proto->connected /* This prunes a lost packet message when connecting */ && proto->lastCounter+1 != packetHeader.counter) {
         if (!(65535 == proto->lastCounter && 0 == packetHeader.counter)) {
-            IOLog("REACProtocol[%p]::filterCommandGateMsg(): Lost packet [%d %d]\n",
+            IOLog("REACConnection[%p]::filterCommandGateMsg(): Lost packet [%d %d]\n",
                   proto, proto->lastCounter, packetHeader.counter);
         }
     }
@@ -337,7 +375,7 @@ void REACProtocol::filterCommandGateMsg(OSObject *target, void *data_mbuf, void*
         }
     }
     
-    // Save the time we got the packet, for use by REACProtocol::timerFired
+    // Save the time we got the packet, for use by REACConnection::timerFired
     //IOLog("AA: %llu   %llu\n", proto->lastSeenConnectionCounter, proto->connectionCounter); // TODO Debug
     proto->lastSeenConnectionCounter = proto->connectionCounter;
     
@@ -347,7 +385,7 @@ void REACProtocol::filterCommandGateMsg(OSObject *target, void *data_mbuf, void*
         proto->samplesCallback(proto, &proto->cookieA, &proto->cookieB, &inBuffer, &inBufferSize);
         
         if (NULL != inBuffer) {
-            REACProtocol::copyFromMbufToBuffer(proto->deviceInfo, data, sizeof(REACPacketHeader),
+            REACConnection::copyFromMbufToBuffer(proto->deviceInfo, data, sizeof(REACPacketHeader),
                                                sizeof(REACPacketHeader)+samplesSize, inBuffer, inBufferSize);
         }
     }
@@ -357,12 +395,12 @@ void REACProtocol::filterCommandGateMsg(OSObject *target, void *data_mbuf, void*
 }
 
 
-errno_t REACProtocol::filterInputFunc(void *cookie,
-                                      ifnet_t interface, 
-                                      protocol_family_t protocol,
-                                      mbuf_t *data,
-                                      char **frame_ptr) {
-    REACProtocol *proto = (REACProtocol *)cookie;
+errno_t REACConnection::filterInputFunc(void *cookie,
+                                        ifnet_t interface, 
+                                        protocol_family_t protocol,
+                                        mbuf_t *data,
+                                        char **frame_ptr) {
+    REACConnection *proto = (REACConnection *)cookie;
     
     char *header = *frame_ptr;
     if (!(0x88 == ((UInt8*)header)[12] && 0x19 == ((UInt8*)header)[13])) {
@@ -375,12 +413,12 @@ errno_t REACProtocol::filterInputFunc(void *cookie,
     return EINPROGRESS; // Skip the processing of the package.
 }
 
-void REACProtocol::filterDetachedFunc(void *cookie,
+void REACConnection::filterDetachedFunc(void *cookie,
                                       ifnet_t interface) {
-    // IOLog("REACProtocol[%p]::filterDetachedFunc()\n", cookie);
+    // IOLog("REACConnection[%p]::filterDetachedFunc()\n", cookie);
 }
 
-void REACProtocol::processDataStream(const REACPacketHeader* packet) {
+void REACConnection::processDataStream(const REACPacketHeader* packet) {
     UInt16 fill;
     
     switch (packet->type) {
@@ -388,7 +426,7 @@ void REACProtocol::processDataStream(const REACPacketHeader* packet) {
             fill = packet->data[0];
             for (int i=1; i<16; i++) {
                 if (packet->data[i] != fill) {
-                    IOLog("REACProtocol[%p]::processDataStream(): Unexpected type 0 packet!\n", this);
+                    IOLog("REACConnection[%p]::processDataStream(): Unexpected type 0 packet!\n", this);
                     break;
                 }
             }
@@ -397,13 +435,13 @@ void REACProtocol::processDataStream(const REACPacketHeader* packet) {
             
         case REAC_STREAM_CONTROL:
         case REAC_STREAM_CONTROL2:
-            // IOLog("REACProtocol[%p]::processDataStream(): Got control [%d]\n", this, packet->counter);
+            // IOLog("REACConnection[%p]::processDataStream(): Got control [%d]\n", this, packet->counter);
             break;
 
     }
 }
 
-bool REACProtocol::checkChecksum(const REACPacketHeader* packet) const {
+bool REACConnection::checkChecksum(const REACPacketHeader* packet) const {
     u_char expected_checksum = 0;
     for (int i=0; i<31; i++) {
         if (i%2)

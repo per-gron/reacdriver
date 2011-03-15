@@ -1,5 +1,5 @@
 /*
- *  REACProtocol.h
+ *  REACConnection.h
  *  REAC
  *
  *  Created by Per Eckerdal on 02/01/2011.
@@ -7,27 +7,16 @@
  *
  */
 
-#ifndef _REACPROTOCOL_H
-#define _REACPROTOCOL_H
+#ifndef _REACCONNECTION_H
+#define _REACCONNECTION_H
 
 #include <IOKit/audio/IOAudioDevice.h>
 #include <IOKit/IOCommandGate.h>
 
 #include <libkern/OSMalloc.h>
 #include <net/kpi_interface.h>
-
-# if defined(__cplusplus)
-#  define RT_C_DECLS_BEGIN extern "C" {
-#  define RT_C_DECLS_END   }
-# else
-#  define RT_C_DECLS_BEGIN
-#  define RT_C_DECLS_END
-# endif
-
-RT_C_DECLS_BEGIN /* Buggy 10.4 headers, fixed in 10.5. */
 #include <sys/kpi_mbuf.h>
 #include <net/kpi_interfacefilter.h>
-RT_C_DECLS_END
 
 
 #define REAC_MAX_CHANNEL_COUNT 40
@@ -39,12 +28,13 @@ RT_C_DECLS_END
 #define REAC_SAMPLE_RATE REAC_PACKETS_PER_SECOND * REAC_SAMPLES_PER_PACKET
 
 #define REAC_ENDING 0xeac2 // TODO Endianness?
+#define REAC_ENDING_LENGTH 4
 
 
 #define EthernetHeader				com_pereckerdal_driver_EthernetHeader
 #define REACPacketHeader            com_pereckerdal_driver_REACPacketHeader
 #define REACDeviceInfo              com_pereckerdal_driver_REACDeviceInfo
-#define REACProtocol                com_pereckerdal_driver_REACProtocol
+#define REACConnection              com_pereckerdal_driver_REACConnection
 
 
 /* Ethernet header */
@@ -67,14 +57,14 @@ struct REACDeviceInfo {
     UInt32 out_channels;
 };
 
-class REACProtocol;
+class REACConnection;
 
 // Is only called when the connection callback has indicated that there is a connection
 //   When in REAC_SLAVE mode, this function is expected to overwrite the samples parameter
 // with the output data [Note to self: if I do this, make sure that the buffer is big enough]
-typedef void(*reac_samples_callback_t)(REACProtocol *proto, void **cookieA, void **cookieB, UInt8 **data, UInt32 *bufferSize);
+typedef void(*reac_samples_callback_t)(REACConnection *proto, void **cookieA, void **cookieB, UInt8 **data, UInt32 *bufferSize);
 // Device is NULL on disconnect
-typedef void(*reac_connection_callback_t)(REACProtocol *proto, void **cookieA, void **cookieB, REACDeviceInfo *device);
+typedef void(*reac_connection_callback_t)(REACConnection *proto, void **cookieA, void **cookieB, REACDeviceInfo *device);
 
 
 // This class is not thread safe; the only functions that can be called
@@ -83,8 +73,8 @@ typedef void(*reac_connection_callback_t)(REACProtocol *proto, void **cookieA, v
 // guaranteed to be called from within the work loop.
 //
 // TODO Private constructor/assignment operator/destructor?
-class REACProtocol : public OSObject {
-    OSDeclareDefaultStructors(REACProtocol)
+class REACConnection : public OSObject {
+    OSDeclareDefaultStructors(REACConnection)
 public:
     enum REACMode {
         REAC_MASTER, REAC_SLAVE, REAC_SPLIT
@@ -102,7 +92,7 @@ public:
                                    reac_samples_callback_t samplesCallback,
                                    void* cookieA,
                                    void* cookieB);
-    static REACProtocol* withInterface(IOWorkLoop* workLoop, ifnet_t interface, REACMode mode,
+    static REACConnection* withInterface(IOWorkLoop* workLoop, ifnet_t interface, REACMode mode,
                                        reac_connection_callback_t connectionCallback,
                                        reac_samples_callback_t samplesCallback,
                                        void* cookieA,
@@ -120,37 +110,42 @@ public:
     // REAC_PACKETS_PER_SECOND times per second (on average).
     //   Returns 0 on success, EINVAL when mode is not REAC_MASTER or when
     // numSamples isn't == REAC_SAMPLES_PER_PACKET
-    errno_t pushSamples(int numSamples, UInt8* samples);
+    IOReturn pushSamples(UInt32 bufSize, UInt8 *sampleBuffer);
     
     const REACDeviceInfo* getDeviceInfo() const;
     bool isListening() const { return listening; }
     bool isConnected() const { return connected; }
     // If you want to continue using the ifnet_t object, make sure to call
-    // ifnet_reference on it, as REACProtocol will release it when it is freed.
+    // ifnet_reference on it, as REACConnection will release it when it is freed.
     ifnet_t getInterface() const { return interface; }
     REACMode getMode() const { return mode; }
 
 protected:
+    // IOKit handles
     IOWorkLoop         *workLoop;
     IOTimerEventSource *timerEventSource;
     IOCommandGate      *filterCommandGate;
     
+    // Network handles
     ifnet_t             interface;
-    REACMode            mode;
     interface_filter_t  filterRef;
-    UInt16              lastCounter;
     
-    UInt64              lastSeenConnectionCounter;
-    UInt64              connectionCounter;
-    
-    bool                listening;
-    bool                connected;
-    REACDeviceInfo     *deviceInfo;
-    
+    // Callback variables
     reac_samples_callback_t samplesCallback;
     reac_connection_callback_t connectionCallback;
     void* cookieA;
     void* cookieB;
+    
+    // Variables for keeping track of when a connection is lost
+    UInt64              lastSeenConnectionCounter;
+    UInt64              connectionCounter;
+    
+    // Connection state variables
+    REACMode            mode;
+    bool                listening;
+    bool                connected;
+    REACDeviceInfo     *deviceInfo;
+    UInt16              lastCounter; // Tracks input REAC counter
     
     static void timerFired(OSObject *target, IOTimerEventSource *sender);
     
@@ -171,4 +166,4 @@ protected:
 };
 
 
-#endif // _REACPROTOCOL_H
+#endif
