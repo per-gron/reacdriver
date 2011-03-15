@@ -19,8 +19,11 @@
 
 // TODO Private constructor?
 class MbufUtils {
+    // Returns the new size of the mbuf
+    inline static size_t mbufAttemptToSetLength(mbuf_t mbuf, size_t targetLength);
 public:
     static size_t mbufTotalLength(mbuf_t mbuf);
+    static size_t mbufTotalMaxLength(mbuf_t mbuf);
     static IOReturn zeroMbuf(mbuf_t mbuf, UInt32 from, UInt32 len);
     static IOReturn copyFromBufferToMbuf(mbuf_t mbuf, UInt32 from, UInt32 bufferSize, UInt8 *inBuffer);
     static IOReturn copyFromMbufToBuffer(mbuf_t mbuf, UInt32 from, UInt32 bufferSize, UInt8 *inBuffer);

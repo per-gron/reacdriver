@@ -12,10 +12,32 @@
 #include <IOKit/IOLib.h>
 #include "REACConstants.h"
 
+// Double-evaluation caveats apply
+#define min_macro(a, b) ((a) < (b) ? (a) : (b))
+
+size_t MbufUtils::mbufAttemptToSetLength(mbuf_t mbuf, size_t targetLength) {
+    size_t mbufLength = mbuf_len(mbuf);
+    size_t mbufMaxLength = mbuf_maxlen(mbuf);
+    if (targetLength > mbufLength && mbufMaxLength != mbufLength) {
+        size_t newBufLen = min_macro(targetLength, mbufMaxLength);
+        mbuf_setlen(mbuf, newBufLen);
+        mbufLength = newBufLen;
+    }
+    return mbufLength;
+}
+
 size_t MbufUtils::mbufTotalLength(mbuf_t mbuf) {
     size_t len = 0;
     do {
         len += mbuf_len(mbuf);
+    } while ((mbuf = mbuf_next(mbuf)));
+    return len;
+}
+
+size_t MbufUtils::mbufTotalMaxLength(mbuf_t mbuf) {
+    size_t len = 0;
+    do {
+        len += mbuf_maxlen(mbuf);
     } while ((mbuf = mbuf_next(mbuf)));
     return len;
 }
@@ -52,8 +74,14 @@ size_t MbufUtils::mbufTotalLength(mbuf_t mbuf) {
     }
 
 IOReturn MbufUtils::zeroMbuf(mbuf_t mbuf, UInt32 from, UInt32 len) {
-    if (len > (UInt32) MbufUtils::mbufTotalLength(mbuf) - from) {
-        IOLog("MbufUtils::zeroMbuf(): Got insufficiently large buffer (mbuf too small).\n");
+    if (mbuf_len(mbuf) < from+len && from+len <= mbuf_maxlen(mbuf)) {
+        mbuf_setlen(mbuf, from+len);
+    }
+    
+    if (from+len > (UInt32) MbufUtils::mbufTotalLength(mbuf)) {
+        IOLog("MbufUtils::zeroMbuf(): Got insufficiently large buffer (mbuf too small: %d+%d > %d (%d)).\n",
+              (int) from, (int) len, (int) MbufUtils::mbufTotalLength(mbuf),
+              (int) MbufUtils::mbufTotalMaxLength(mbuf));
         return kIOReturnNoMemory;
     }
     
@@ -65,6 +93,7 @@ IOReturn MbufUtils::zeroMbuf(mbuf_t mbuf, UInt32 from, UInt32 len) {
     
     while (bytesLeft) {
         ensure_mbuf_macro();
+        mbufLength = MbufUtils::mbufAttemptToSetLength(mbuf, bytesLeft);
         *mbufBuffer = 0;
         --bytesLeft;
     }
@@ -83,18 +112,19 @@ IOReturn MbufUtils::copyFromBufferToMbuf(mbuf_t mbuf, UInt32 from, UInt32 buffer
         return kIOReturnBadArgument;
     }
     
-    UInt8 *inBufferEnd = inBuffer + bufferSize;
     UInt8 *mbufBuffer = (UInt8 *)mbuf_data(mbuf);
     size_t mbufLength = mbuf_len(mbuf);
+    UInt32 bytesLeft = bufferSize;
     
     skip_mbuf_macro();
 
 #   define mbuf_move_buffer_forward_macro() \
         ++mbufBuffer; \
         --mbufLength; \
-        ensure_mbuf_macro();
+        ensure_mbuf_macro(); \
+        mbufLength = MbufUtils::mbufAttemptToSetLength(mbuf, bytesLeft);
     
-    while (inBuffer < inBufferEnd) {
+    while (bytesLeft) {
         *mbufBuffer = inBuffer[1]; mbuf_move_buffer_forward_macro();
         *mbufBuffer = inBuffer[0]; mbuf_move_buffer_forward_macro();
         *mbufBuffer = inBuffer[3]; mbuf_move_buffer_forward_macro();
@@ -104,6 +134,7 @@ IOReturn MbufUtils::copyFromBufferToMbuf(mbuf_t mbuf, UInt32 from, UInt32 buffer
         *mbufBuffer = inBuffer[4]; mbuf_move_buffer_forward_macro();
         
         inBuffer += REAC_RESOLUTION*2;
+        bytesLeft -= REAC_RESOLUTION*2;
     }
     
     return kIOReturnSuccess;
