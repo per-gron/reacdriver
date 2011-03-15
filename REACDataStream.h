@@ -21,7 +21,7 @@
 struct REACPacketHeader {
     UInt16 counter;
     UInt16 type;
-    UInt16 data[16];
+    UInt8  data[32];
 };
 
 // Handles the data stream part of a REAC stream (both input and output).
@@ -43,14 +43,15 @@ public:
     virtual bool init();
     static REACDataStream* with();
 protected:
-    // Object destruction method that is used by free and initWithInterface on failure.
+    // Object destruction method that is used by free, and init on failure.
     virtual void deinit();
     virtual void free();
     
 public:
     
-    void processDataStream(const REACPacketHeader* packet);
-    bool checkChecksum(const REACPacketHeader* packet) const; // For data stream packets
+    void processDataStream(const REACPacketHeader *packet);
+    static bool checkChecksum(const REACPacketHeader *packet);
+    static UInt8 applyChecksum(REACPacketHeader *packet);
     
 protected:
 

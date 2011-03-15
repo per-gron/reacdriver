@@ -82,7 +82,7 @@ public:
                                        void* cookieA,
                                        void* cookieB);
 protected:
-    // Object destruction method that is used by free and initWithInterface on failure.
+    // Object destruction method that is used by free, and initWithInterface on failure.
     virtual void deinit();
     virtual void free();
 public:
@@ -142,9 +142,7 @@ protected:
                                    mbuf_t *data,
                                    char **frame_ptr);        
     static void filterDetachedFunc(void *cookie,
-                                   ifnet_t interface); 
-    
-    void processDataStream(const REACPacketHeader* packet);
+                                   ifnet_t interface);
     
 };
 

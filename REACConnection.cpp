@@ -389,7 +389,8 @@ void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, voi
                                                sizeof(REACPacketHeader)+samplesSize, inBuffer, inBufferSize);
         }
     }
-    proto->processDataStream(&packetHeader);
+    
+    // TODO: proto->processDataStream(&packetHeader);
     
     proto->lastCounter = packetHeader.counter;
 }

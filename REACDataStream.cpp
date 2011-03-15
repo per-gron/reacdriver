@@ -17,12 +17,13 @@ OSDefineMetaClassAndStructors(REACDataStream, OSObject)
 
 void REACDataStream::processDataStream(const REACPacketHeader* packet) {
     UInt16 fill;
+    UInt16 *data = (UInt16 *)packet->data;
     
     switch (packet->type) {
         case REAC_STREAM_FILLER:
-            fill = packet->data[0];
+            fill = data[0];
             for (int i=1; i<16; i++) {
-                if (packet->data[i] != fill) {
+                if (data[i] != fill) {
                     IOLog("REACConnection[%p]::processDataStream(): Unexpected type 0 packet!\n", this);
                     break;
                 }
@@ -38,15 +39,24 @@ void REACDataStream::processDataStream(const REACPacketHeader* packet) {
     }
 }
 
-bool REACDataStream::checkChecksum(const REACPacketHeader* packet) const {
-    u_char expected_checksum = 0;
+bool REACDataStream::checkChecksum(const REACPacketHeader *packet) {
+    UInt8 expected_checksum = 0;
     for (int i=0; i<31; i++) {
         if (i%2)
-            expected_checksum += (u_char) (packet->data[i/2] >> 8);
+            expected_checksum += (UInt8) (packet->data[i/2] >> 8);
         else
-            expected_checksum += (u_char) packet->data[i/2] & 255;
+            expected_checksum += (UInt8) packet->data[i/2] & 255;
     }
-    expected_checksum = (u_char) (256 - (int)expected_checksum);
+    expected_checksum = (UInt8) (256 - (int)expected_checksum);
     
     return expected_checksum == packet->data[15] >> 8;
+}
+
+UInt8 REACDataStream::applyChecksum(REACPacketHeader *packet) {
+    UInt8 sum = 0;
+    for (int i=0; i<31; i++)
+        sum += packet->data[i];
+    sum = (256 - (int)sum);
+    packet->data[31] = sum;
+    return sum;
 }
