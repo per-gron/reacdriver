@@ -16,6 +16,8 @@
 		CB102BF312D0F64B00231CE9 /* REACAudioClip.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB102BF112D0F64B00231CE9 /* REACAudioClip.cpp */; };
 		CB254E78132F9065002EDDCA /* MbufUtils.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB254E76132F9063002EDDCA /* MbufUtils.cpp */; };
 		CB254E79132F9065002EDDCA /* MbufUtils.h in Headers */ = {isa = PBXBuildFile; fileRef = CB254E77132F9064002EDDCA /* MbufUtils.h */; };
+		CB254E7B132F9E19002EDDCA /* REACConstants.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB254E7A132F9E18002EDDCA /* REACConstants.cpp */; };
+		CB254E7D132F9E31002EDDCA /* REACConstants.h in Headers */ = {isa = PBXBuildFile; fileRef = CB254E7C132F9E30002EDDCA /* REACConstants.h */; };
 		CB3CE415132BC6FF00CAD028 /* REACAudioClip.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB102BF112D0F64B00231CE9 /* REACAudioClip.cpp */; };
 		CB3CE418132BC75100CAD028 /* libREACFloatSupport.a in Headers */ = {isa = PBXBuildFile; fileRef = CB3CE412132BC6D300CAD028 /* libREACFloatSupport.a */; };
 		CB3CE41D132CB04B00CAD028 /* PCMBlitterLibTest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB3CE419132CB04A00CAD028 /* PCMBlitterLibTest.cpp */; };
@@ -50,6 +52,8 @@
 		CB102BF112D0F64B00231CE9 /* REACAudioClip.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = REACAudioClip.cpp; sourceTree = "<group>"; };
 		CB254E76132F9063002EDDCA /* MbufUtils.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = MbufUtils.cpp; sourceTree = "<group>"; };
 		CB254E77132F9064002EDDCA /* MbufUtils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MbufUtils.h; sourceTree = "<group>"; };
+		CB254E7A132F9E18002EDDCA /* REACConstants.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = REACConstants.cpp; sourceTree = "<group>"; };
+		CB254E7C132F9E30002EDDCA /* REACConstants.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = REACConstants.h; sourceTree = "<group>"; };
 		CB3CE412132BC6D300CAD028 /* libREACFloatSupport.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libREACFloatSupport.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		CB3CE419132CB04A00CAD028 /* PCMBlitterLibTest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PCMBlitterLibTest.cpp; sourceTree = "<group>"; };
 		CB3CE41A132CB04A00CAD028 /* PCMBlitterLib.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PCMBlitterLib.h; sourceTree = "<group>"; };
@@ -126,6 +130,8 @@
 				CB3CE41C132CB04A00CAD028 /* PCMBlitterLib.cpp */,
 				CB254E76132F9063002EDDCA /* MbufUtils.cpp */,
 				CB254E77132F9064002EDDCA /* MbufUtils.h */,
+				CB254E7C132F9E30002EDDCA /* REACConstants.h */,
+				CB254E7A132F9E18002EDDCA /* REACConstants.cpp */,
 			);
 			name = Source;
 			sourceTree = "<group>";
@@ -142,6 +148,7 @@
 				CB102B9912D0D5FE00231CE9 /* REACConnection.h in Headers */,
 				CB713672132F5B1A001686C9 /* REACDataStream.h in Headers */,
 				CB254E79132F9065002EDDCA /* MbufUtils.h in Headers */,
+				CB254E7D132F9E31002EDDCA /* REACConstants.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -252,6 +259,7 @@
 				CB102BF312D0F64B00231CE9 /* REACAudioClip.cpp in Sources */,
 				CB713671132F5B1A001686C9 /* REACDataStream.cpp in Sources */,
 				CB254E78132F9065002EDDCA /* MbufUtils.cpp in Sources */,
+				CB254E7B132F9E19002EDDCA /* REACConstants.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

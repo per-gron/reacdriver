@@ -261,9 +261,10 @@ IOReturn REACConnection::getAndPushSamples() {
 }
 
 IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
-    const UInt32 ending = REAC_ENDING; // TODO This is just so hacky wrt size and endianness
+    // TODO Are we supposed to write the ethernet header here as well? I think so?
+    
     const UInt32 samplesSize = REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*deviceInfo->out_channels;
-    const UInt32 packetLen = sizeof(REACPacketHeader)+samplesSize+REAC_ENDING_LENGTH;
+    const UInt32 packetLen = sizeof(REACPacketHeader)+samplesSize+sizeof(REACConstants::ENDING);
     REACPacketHeader rph;
     mbuf_t mbuf = NULL;
     int result = kIOReturnError;
@@ -278,12 +279,25 @@ IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
         goto Done;
     }
     
-    dataStream->processPacket(&rph);
+    if (kIOReturnSuccess != dataStream->processPacket(&rph)) {
+        IOLog("REACConnection::pushSamples() - Error: Failed to process packet data stream.");
+        goto Done;
+    }
     
     if (0 != mbuf_allocpacket(MBUF_DONTWAIT, packetLen, NULL, &mbuf)) {
         IOLog("REACConnection::pushSamples() - Error: Failed to allocate packet mbuf.");
         goto Done;
     }
+    
+    // ifnet_get_address_list  &  ifnet_free_address_list
+    // ifaddr_address
+    EthernetHeader header;
+    memset(&header.shost, 0xff, ETHER_ADDR_LEN); // TODO
+    memset(&header.dhost, 0xff, ETHER_ADDR_LEN);
+    memcpy(&header.type, REACConstants::PROTOCOL, sizeof(REACConstants::PROTOCOL));
+    mbuf_pkthdr_setheader(mbuf, &header);
+    mbuf_pkthdr_setlen(mbuf, sizeof(EthernetHeader));
+    
     if (0 != mbuf_copyback(mbuf, 0, sizeof(REACPacketHeader), &rph, MBUF_DONTWAIT)) {
         IOLog("REACConnection::pushSamples() - Error: Failed to copy REAC header to packet mbuf.");
         goto Done;
@@ -301,8 +315,8 @@ IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
             goto Done;
         }
     }
-    // TODO Invent a better way to handle REAC_ENDING
-    if (0 != mbuf_copyback(mbuf, sizeof(REACPacketHeader)+samplesSize, REAC_ENDING_LENGTH, &ending, MBUF_DONTWAIT)) {
+    if (0 != mbuf_copyback(mbuf, sizeof(REACPacketHeader)+samplesSize, sizeof(REACConstants::ENDING),
+                           REACConstants::ENDING, MBUF_DONTWAIT)) {
         IOLog("REACConnection::pushSamples() - Error: Failed to copy ending to packet mbuf.");
         goto Done;
     }
@@ -412,10 +426,12 @@ errno_t REACConnection::filterInputFunc(void *cookie,
     REACConnection *proto = (REACConnection *)cookie;
     
     char *header = *frame_ptr;
-    if (!(0x88 == ((UInt8*)header)[12] && 0x19 == ((UInt8*)header)[13])) {
+    if (!(REACConstants::PROTOCOL[0] == ((UInt8*)header)[12] && REACConstants::PROTOCOL[1] == ((UInt8*)header)[13])) {
         // This is not a REAC packet. Ignore.
         return 0; // Continue normal processing of the package.
     }
+    
+    // TODO The input filter function must make sure to not parse the outgoing packets
     
     proto->filterCommandGate->runCommand(data);
     

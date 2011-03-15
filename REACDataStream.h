@@ -12,6 +12,7 @@
 
 #include <libkern/OSTypes.h>
 #include <libkern/c++/OSObject.h>
+#include <IOKit/IOReturn.h>
 
 #define REACPacketHeader        com_pereckerdal_driver_REACPacketHeader
 #define REACDataStream          com_pereckerdal_driver_REACDataStream
@@ -50,7 +51,7 @@ protected:
 public:
     
     void gotPacket(const REACPacketHeader *packet);
-    void processPacket(REACPacketHeader *packet);
+    IOReturn processPacket(REACPacketHeader *packet);
     
     static bool checkChecksum(const REACPacketHeader *packet);
     static UInt8 applyChecksum(REACPacketHeader *packet);

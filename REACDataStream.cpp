@@ -68,8 +68,10 @@ void REACDataStream::gotPacket(const REACPacketHeader *packet) {
     }
 }
 
-void REACDataStream::processPacket(REACPacketHeader *packet) {
+IOReturn REACDataStream::processPacket(REACPacketHeader *packet) {
     REACDataStream::applyChecksum(packet);
+    
+    return kIOReturnSuccess;
 }
 
 bool REACDataStream::checkChecksum(const REACPacketHeader *packet) {

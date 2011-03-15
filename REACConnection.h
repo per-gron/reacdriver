@@ -17,20 +17,9 @@
 #include <net/kpi_interfacefilter.h>
 
 #include "REACDataStream.h"
+#include "REACConstants.h"
 
-#define REAC_MAX_CHANNEL_COUNT 40
-#define REAC_PACKETS_PER_SECOND 8000
-#define REAC_RESOLUTION 3 // 3 bytes per sample per channel
-#define REAC_SAMPLES_PER_PACKET 12
-#define ETHER_ADDR_LEN 6
-
-#define REAC_SAMPLE_RATE REAC_PACKETS_PER_SECOND * REAC_SAMPLES_PER_PACKET
-
-#define REAC_ENDING 0xeac2 // TODO Endianness?
-#define REAC_ENDING_LENGTH 4
-
-
-#define EthernetHeader				com_pereckerdal_driver_EthernetHeader
+#define EthernetHeader              com_pereckerdal_driver_EthernetHeader
 #define REACDeviceInfo              com_pereckerdal_driver_REACDeviceInfo
 #define REACConnection              com_pereckerdal_driver_REACConnection
 
@@ -103,7 +92,7 @@ public:
 protected:
     // IOKit handles
     IOWorkLoop         *workLoop;
-    IOTimerEventSource *timerEventSource;
+    IOTimerEventSource *timerEventSource;        // Note that the timer runs faster when in REAC_MASTER mode than otherwise
     IOCommandGate      *filterCommandGate;
     UInt64              timeoutNS;
     UInt64              nextTime;                // the estimated time the timer will fire next

@@ -10,7 +10,7 @@
 #include "MbufUtils.h"
 
 #include <IOKit/IOLib.h>
-#include "REACConnection.h"
+#include "REACConstants.h"
 
 size_t MbufUtils::mbufTotalLength(mbuf_t mbuf) {
     size_t len = 0;
