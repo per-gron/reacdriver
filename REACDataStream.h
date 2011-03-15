@@ -50,7 +50,7 @@ protected:
 public:
     
     void gotPacket(const REACPacketHeader *packet);
-    void processPacket(const REACPacketHeader *packet);
+    void processPacket(REACPacketHeader *packet);
     
     static bool checkChecksum(const REACPacketHeader *packet);
     static UInt8 applyChecksum(REACPacketHeader *packet);

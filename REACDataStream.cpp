@@ -68,8 +68,8 @@ void REACDataStream::gotPacket(const REACPacketHeader *packet) {
     }
 }
 
-void REACDataStream::processPacket(const REACPacketHeader *packet) {
-    
+void REACDataStream::processPacket(REACPacketHeader *packet) {
+    REACDataStream::applyChecksum(packet);
 }
 
 bool REACDataStream::checkChecksum(const REACPacketHeader *packet) {

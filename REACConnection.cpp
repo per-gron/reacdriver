@@ -257,9 +257,56 @@ size_t REACConnection::mbufTotalLength(mbuf_t mbuf) {
     return len;
 }
 
+#define next_mbuf() \
+    mbuf = mbuf_next(mbuf); \
+    if (!mbuf) { \
+        /* This should never happen */ \
+        IOLog("REACConnection::next_mbuf(): Internal error (couldn't fetch next mbuf).\n"); \
+        return kIOReturnInternalError; \
+    } \
+    mbufBuffer = (UInt8 *)mbuf_data(mbuf); \
+    mbufLength = mbuf_len(mbuf);
+
+#define ensure_mbuf() \
+    while (0 == mbufLength) { \
+        next_mbuf(); \
+    }
+
+#define skip_mbuf() \
+    { \
+        UInt32 skip = from; \
+        while (skip) { \
+            if (skip >= mbufLength) { \
+                skip -= mbufLength; \
+                next_mbuf(); \
+            } \
+            else { \
+                mbufLength -= skip; \
+                mbufBuffer += skip; \
+                skip = 0; \
+            } \
+        } \
+    }
+
 IOReturn REACConnection::zeroMbuf(mbuf_t mbuf, UInt32 from, UInt32 len) {
-    // TODO Implement me
-    return kIOReturnError;
+    if (len > (UInt32) REACConnection::mbufTotalLength(mbuf) - from) {
+        IOLog("REACConnection::copyFromMbufToBuffer(): Got insufficiently large buffer (mbuf too small).\n");
+        return kIOReturnNoMemory;
+    }
+    
+    UInt8 *mbufBuffer = (UInt8 *)mbuf_data(mbuf);
+    size_t mbufLength = mbuf_len(mbuf);
+    UInt32 bytesLeft = len;
+    
+    skip_mbuf();
+    
+    while (bytesLeft) {
+        ensure_mbuf();
+        *mbufBuffer = 0;
+        --bytesLeft;
+    }
+    
+    return kIOReturnSuccess;
 }
 
 IOReturn REACConnection::copyFromBufferToMbuf(REACDeviceInfo *di, mbuf_t mbuf, UInt32 from, UInt32 bufferSize, UInt8 *inBuffer) {
@@ -287,34 +334,11 @@ IOReturn REACConnection::copyFromMbufToBuffer(REACDeviceInfo *di, mbuf_t mbuf, U
     UInt8 *mbufBuffer = (UInt8 *)mbuf_data(mbuf);
     size_t mbufLength = mbuf_len(mbuf);
     
-#   define next_mbuf() \
-        mbuf = mbuf_next(mbuf); \
-        if (!mbuf) { \
-            /* This should never happen */ \
-            IOLog("REACConnection::copyFromMbufToBuffer(): Internal error (couldn't fetch next mbuf).\n"); \
-            return kIOReturnInternalError; \
-        } \
-        mbufBuffer = (UInt8 *)mbuf_data(mbuf); \
-        mbufLength = mbuf_len(mbuf);
-    
-    UInt32 skip = from;
-    while (skip) {
-        if (skip >= mbufLength) {
-            skip -= mbufLength;
-            next_mbuf();
-        }
-        else {
-            mbufLength -= skip;
-            mbufBuffer += skip;
-            skip = 0;
-        }
-    }
+    skip_mbuf();
     
     while (inBuffer < inBufferEnd) {
         for (UInt32 i=0; i<sizeof(intermediaryBuffer); i++) {
-            while (0 == mbufLength) {
-                next_mbuf();
-            }
+            ensure_mbuf();
             
             intermediaryBuffer[i] = *mbufBuffer;
             ++mbufBuffer;
