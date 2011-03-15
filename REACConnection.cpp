@@ -249,24 +249,41 @@ void REACConnection::timerFired(OSObject *target, IOTimerEventSource *sender) {
     proto->nextTime += proto->timeoutNS;
 }
 
-void REACConnection::copyFromMbufToBuffer(REACDeviceInfo *di, mbuf_t *data, int from, int to, UInt8 *inBuffer, int bufferSize) {
-    const int bytesPerSample = REAC_RESOLUTION * di->in_channels;
-    const int bytesPerPacket = bytesPerSample * REAC_SAMPLES_PER_PACKET;
+size_t REACConnection::mbufTotalLength(mbuf_t mbuf) {
+    size_t len = 0;
+    do {
+        len += mbuf_len(mbuf);
+    } while ((mbuf = mbuf_next(mbuf)));
+    return len;
+}
+
+IOReturn REACConnection::zeroMbuf(mbuf_t mbuf, UInt32 from, UInt32 len) {
+    // TODO Implement me
+    return kIOReturnError;
+}
+
+IOReturn REACConnection::copyFromBufferToMbuf(REACDeviceInfo *di, mbuf_t mbuf, UInt32 from, UInt32 bufferSize, UInt8 *inBuffer) {
+    // TODO Implement me
+    return kIOReturnError;
+}
+
+IOReturn REACConnection::copyFromMbufToBuffer(REACDeviceInfo *di, mbuf_t mbuf, UInt32 from, UInt32 bufferSize, UInt8 *inBuffer) {
+    const UInt32 bytesPerSample = REAC_RESOLUTION * di->in_channels;
+    const UInt32 bytesPerPacket = bytesPerSample * REAC_SAMPLES_PER_PACKET;
     
     UInt8 *inBufferEnd = inBuffer + bufferSize;
     
-    if (bufferSize < bytesPerPacket) {
-        IOLog("REACConnection::copyFromMbufToBuffer(): Got insufficiently large buffer.\n");
-        return;
+    if (bufferSize != bytesPerPacket) {
+        IOLog("REACConnection::copyFromMbufToBuffer(): Got incorrectly sized buffer (not the same as a packet).\n");
+        return kIOReturnNoMemory;
     }
     
-    if (to-from != bytesPerPacket) {
-        IOLog("REACConnection::copyFromMbufToBuffer(): Got packet of invalid length.\n");
-        return;
+    if (bufferSize > (UInt32) REACConnection::mbufTotalLength(mbuf)-from) {
+        IOLog("REACConnection::copyFromMbufToBuffer(): Got insufficiently large buffer (mbuf too small).\n");
+        return kIOReturnNoMemory;
     }
     
     UInt8 intermediaryBuffer[6];
-    mbuf_t mbuf = *data;
     UInt8 *mbufBuffer = (UInt8 *)mbuf_data(mbuf);
     size_t mbufLength = mbuf_len(mbuf);
     
@@ -275,7 +292,7 @@ void REACConnection::copyFromMbufToBuffer(REACDeviceInfo *di, mbuf_t *data, int 
         if (!mbuf) { \
             /* This should never happen */ \
             IOLog("REACConnection::copyFromMbufToBuffer(): Internal error (couldn't fetch next mbuf).\n"); \
-            return; \
+            return kIOReturnInternalError; \
         } \
         mbufBuffer = (UInt8 *)mbuf_data(mbuf); \
         mbufLength = mbuf_len(mbuf);
@@ -314,6 +331,8 @@ void REACConnection::copyFromMbufToBuffer(REACDeviceInfo *di, mbuf_t *data, int 
         
         inBuffer += REAC_RESOLUTION*2;
     }
+    
+    return kIOReturnSuccess;
 }
 
 IOReturn REACConnection::getAndPushSamples() {
@@ -326,10 +345,9 @@ IOReturn REACConnection::getAndPushSamples() {
 }
 
 IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
-    // TODO Handle the case when bufSize == 0 and sampleBuffer == NULL.
-    
     const UInt32 ending = REAC_ENDING; // TODO This is just so hacky wrt size and endianness
-    const int packetLen = sizeof(REACPacketHeader)+bufSize+REAC_ENDING_LENGTH;
+    const UInt32 samplesSize = REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*deviceInfo->out_channels;
+    const UInt32 packetLen = sizeof(REACPacketHeader)+samplesSize+REAC_ENDING_LENGTH;
     REACPacketHeader rph;
     mbuf_t mbuf = NULL;
     int result = kIOReturnError;
@@ -339,7 +357,7 @@ IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
         goto Done;
     }
     
-    if (REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*deviceInfo->out_channels == bufSize) {
+    if (samplesSize == bufSize && NULL != sampleBuffer) { // bufSize is ignored when sampleBuffer is NULL
         result = kIOReturnBadArgument;
         goto Done;
     }
@@ -354,13 +372,21 @@ IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
         IOLog("REACConnection::pushSamples() - Error: Failed to copy REAC header to packet mbuf.");
         goto Done;
     }
-    // TODO This is incorrect; We need to shuffle around the byte order of the samples
-    if (0 != mbuf_copyback(mbuf, sizeof(REACPacketHeader), bufSize, sampleBuffer, MBUF_DONTWAIT)) {
-        IOLog("REACConnection::pushSamples() - Error: Failed to copy sample data to packet mbuf.");
-        goto Done;
+    if (NULL == sampleBuffer) {
+        if (kIOReturnSuccess != REACConnection::zeroMbuf(mbuf, sizeof(REACPacketHeader), samplesSize)) {
+            IOLog("REACConnection::pushSamples() - Error: Failed to zero sample data in mbuf.");
+            goto Done;
+        }
+    }
+    else {
+        if (kIOReturnSuccess != REACConnection::copyFromBufferToMbuf(deviceInfo, mbuf, sizeof(REACPacketHeader),
+                                                                     bufSize, sampleBuffer)) {
+            IOLog("REACConnection::pushSamples() - Error: Failed to copy sample data to packet mbuf.");
+            goto Done;
+        }
     }
     // TODO Invent a better way to handle REAC_ENDING
-    if (0 != mbuf_copyback(mbuf, sizeof(REACPacketHeader)+bufSize, REAC_ENDING_LENGTH, &ending, MBUF_DONTWAIT)) {
+    if (0 != mbuf_copyback(mbuf, sizeof(REACPacketHeader)+samplesSize, REAC_ENDING_LENGTH, &ending, MBUF_DONTWAIT)) {
         IOLog("REACConnection::pushSamples() - Error: Failed to copy ending to packet mbuf.");
         goto Done;
     }
@@ -391,17 +417,9 @@ void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, voi
     
     const int samplesSize = REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*proto->deviceInfo->in_channels;
     
-    mbuf_t *data;
-    UInt32 len;
+    mbuf_t *data = (mbuf_t *)data_mbuf;
+    UInt32 len = REACConnection::mbufTotalLength(*data);
     REACPacketHeader packetHeader;
-    
-    data = (mbuf_t *)data_mbuf;
-    
-    len = 0;
-    mbuf_t dataToCalcLength = *data;
-    do {
-        len += mbuf_len(dataToCalcLength);
-    } while ((dataToCalcLength = mbuf_next(dataToCalcLength)));
     
     if (sizeof(REACPacketHeader)+samplesSize+sizeof(UInt16) != len) {
         IOLog("REACConnection[%p]::filterCommandGateMsg(): Got packet of invalid length\n", proto);
@@ -447,8 +465,8 @@ void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, voi
             proto->samplesCallback(proto, &proto->cookieA, &proto->cookieB, &inBuffer, &inBufferSize);
             
             if (NULL != inBuffer) {
-                REACConnection::copyFromMbufToBuffer(proto->deviceInfo, data, sizeof(REACPacketHeader),
-                                                     sizeof(REACPacketHeader)+samplesSize, inBuffer, inBufferSize);
+                REACConnection::copyFromMbufToBuffer(proto->deviceInfo, *data, sizeof(REACPacketHeader),
+                                                     inBufferSize, inBuffer);
             }
             
             proto->dataStream->gotPacket(&packetHeader);
