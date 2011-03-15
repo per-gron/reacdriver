@@ -261,66 +261,76 @@ IOReturn REACConnection::getAndPushSamples() {
 }
 
 IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
-    // TODO Are we supposed to write the ethernet header here as well? I think so?
-    
     const UInt32 samplesSize = REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*deviceInfo->out_channels;
-    const UInt32 packetLen = sizeof(REACPacketHeader)+samplesSize+sizeof(REACConstants::ENDING);
+    const UInt32 sampleOffset = sizeof(EthernetHeader)+sizeof(REACPacketHeader);
+    const UInt32 endingOffset = sampleOffset+samplesSize;
+    const UInt32 packetLen = endingOffset+sizeof(REACConstants::ENDING);
     REACPacketHeader rph;
     mbuf_t mbuf = NULL;
     int result = kIOReturnError;
     
+    /// Do some argument checks
     if (!(REAC_SLAVE == mode || REAC_MASTER == mode)) {
         result = kIOReturnInvalid;
         goto Done;
     }
-    
     if (samplesSize == bufSize && NULL != sampleBuffer) { // bufSize is ignored when sampleBuffer is NULL
         result = kIOReturnBadArgument;
         goto Done;
     }
     
+    /// Do REAC data stream processing
     if (kIOReturnSuccess != dataStream->processPacket(&rph)) {
         IOLog("REACConnection::pushSamples() - Error: Failed to process packet data stream.");
         goto Done;
     }
     
+    /// Allocate mbuf
     if (0 != mbuf_allocpacket(MBUF_DONTWAIT, packetLen, NULL, &mbuf)) {
         IOLog("REACConnection::pushSamples() - Error: Failed to allocate packet mbuf.");
         goto Done;
     }
     
+    /// Copy ethernet header
     // ifnet_get_address_list  &  ifnet_free_address_list
     // ifaddr_address
     EthernetHeader header;
     memset(&header.shost, 0xff, ETHER_ADDR_LEN); // TODO
     memset(&header.dhost, 0xff, ETHER_ADDR_LEN);
     memcpy(&header.type, REACConstants::PROTOCOL, sizeof(REACConstants::PROTOCOL));
-    mbuf_pkthdr_setheader(mbuf, &header);
-    mbuf_pkthdr_setlen(mbuf, sizeof(EthernetHeader));
-    
-    if (0 != mbuf_copyback(mbuf, 0, sizeof(REACPacketHeader), &rph, MBUF_DONTWAIT)) {
+    if (0 != mbuf_copyback(mbuf, 0, sizeof(EthernetHeader), &rph, MBUF_DONTWAIT)) {
         IOLog("REACConnection::pushSamples() - Error: Failed to copy REAC header to packet mbuf.");
         goto Done;
     }
+    
+    /// Copy REAC header
+    if (0 != mbuf_copyback(mbuf, sizeof(EthernetHeader), sizeof(REACPacketHeader), &rph, MBUF_DONTWAIT)) {
+        IOLog("REACConnection::pushSamples() - Error: Failed to copy REAC header to packet mbuf.");
+        goto Done;
+    }
+    
+    /// Copy sample data
     if (NULL == sampleBuffer) {
-        if (kIOReturnSuccess != MbufUtils::zeroMbuf(mbuf, sizeof(REACPacketHeader), samplesSize)) {
+        if (kIOReturnSuccess != MbufUtils::zeroMbuf(mbuf, sampleOffset, samplesSize)) {
             IOLog("REACConnection::pushSamples() - Error: Failed to zero sample data in mbuf.");
             goto Done;
         }
     }
     else {
-        if (kIOReturnSuccess != MbufUtils::copyFromBufferToMbuf(mbuf, sizeof(REACPacketHeader),
-                                                                bufSize, sampleBuffer)) {
+        if (kIOReturnSuccess != MbufUtils::copyFromBufferToMbuf(mbuf, sampleOffset, bufSize, sampleBuffer)) {
             IOLog("REACConnection::pushSamples() - Error: Failed to copy sample data to packet mbuf.");
             goto Done;
         }
     }
-    if (0 != mbuf_copyback(mbuf, sizeof(REACPacketHeader)+samplesSize, sizeof(REACConstants::ENDING),
+    
+    /// Copy packet ending
+    if (0 != mbuf_copyback(mbuf, endingOffset, sizeof(REACConstants::ENDING),
                            REACConstants::ENDING, MBUF_DONTWAIT)) {
         IOLog("REACConnection::pushSamples() - Error: Failed to copy ending to packet mbuf.");
         goto Done;
     }
     
+    /// Send packet
     if (0 != ifnet_output_raw(interface, 0, mbuf)) {
         mbuf = NULL; // ifnet_output_raw always frees the mbuf
         IOLog("REACConnection::pushSamples() - Error: Failed to send packet.");
@@ -331,7 +341,7 @@ IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
     result = kIOReturnSuccess;
 Done:
     if (NULL != mbuf) {
-        mbuf_free(mbuf);
+        mbuf_freem(mbuf);
         mbuf = NULL;
     }
     return result;
@@ -342,6 +352,12 @@ void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, voi
     if (NULL == proto) {
         // This should never happen
         IOLog("REACConnection::filterCommandGateMsg(): Internal error.\n");
+        return;
+    }
+    
+    // TODO Make sure to not parse the outgoing packets
+    // Hack to avoid processing outbound packets (this obviously needs to be better in the future)
+    if (REAC_MASTER == proto->mode) {
         return;
     }
     
@@ -437,9 +453,7 @@ errno_t REACConnection::filterInputFunc(void *cookie,
         // This is not a REAC packet. Ignore.
         return 0; // Continue normal processing of the package.
     }
-    
-    // TODO The input filter function must make sure to not parse the outgoing packets
-    
+        
     proto->filterCommandGate->runCommand(data);
     
     return EINPROGRESS; // Skip the processing of the package.
