@@ -70,7 +70,7 @@ bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_
     deviceInfo->addr[5] = 0xf6;
     deviceInfo->in_channels = 16;
     deviceInfo->out_channels = 8;
-    listening = false;
+    started = false;
     connected = false;
     
     lastCounter = 0;
@@ -119,7 +119,7 @@ REACConnection *REACConnection::withInterface(IOWorkLoop *workLoop, ifnet_t inte
 }
 
 void REACConnection::deinit() {
-    detach();
+    stop();
     
     if (NULL != dataStream) {
         dataStream->release();
@@ -159,9 +159,9 @@ void REACConnection::free() {
 }
 
 
-bool REACConnection::listen() {
+bool REACConnection::start() {
     if (NULL == timerEventSource || workLoop->addEventSource(timerEventSource) != kIOReturnSuccess) {
-        IOLog("REACConnection::listen() - Error: Failed to add timer event source to work loop!\n");
+        IOLog("REACConnection::start() - Error: Failed to add timer event source to work loop!\n");
         return false;
     }
     
@@ -187,13 +187,13 @@ bool REACConnection::listen() {
         return false;
     }
     
-    listening = true;
+    started = true;
     
     return true;
 }
 
-void REACConnection::detach() {
-    if (listening) {
+void REACConnection::stop() {
+    if (started) {
         if (NULL != timerEventSource) {
             timerEventSource->cancelTimeout();
             workLoop->removeEventSource(timerEventSource);
@@ -207,7 +207,7 @@ void REACConnection::detach() {
         }
         
         iflt_detach(filterRef);
-        listening = false;
+        started = false;
     }
 }
 

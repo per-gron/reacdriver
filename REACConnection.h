@@ -89,11 +89,11 @@ protected:
     virtual void deinit();
     virtual void free();
 public:
-    bool listen();
-    void detach();
+    bool start();
+    void stop();
     
     const REACDeviceInfo *getDeviceInfo() const;
-    bool isListening() const { return listening; }
+    bool isStarted() const { return started; }
     bool isConnected() const { return connected; }
     // If you want to continue using the ifnet_t object, make sure to call
     // ifnet_reference on it, as REACConnection will release it when it is freed.
@@ -113,8 +113,8 @@ protected:
     interface_filter_t  filterRef;
     
     // Callback variables
-    reac_connection_callback_t connectionCallback;
-    reac_samples_callback_t samplesCallback;
+    reac_connection_callback_t  connectionCallback;
+    reac_samples_callback_t     samplesCallback;
     reac_get_samples_callback_t getSamplesCallback;
     void *cookieA;
     void *cookieB;
@@ -125,7 +125,7 @@ protected:
     
     // Connection state variables
     REACMode            mode;
-    bool                listening;
+    bool                started;
     bool                connected;
     REACDataStream     *dataStream;
     REACDeviceInfo     *deviceInfo;
@@ -137,7 +137,7 @@ protected:
     // When sampleBuffer is NULL, the sample data will be zeros (and bufSize will be disregarded).
     IOReturn pushSamples(UInt32 bufSize, UInt8 *sampleBuffer);
     
-    static void filterCommandGateMsg(OSObject *target, void* type, void* protocol, void* deviceInfo, void* audioEnginePointer);
+    static void filterCommandGateMsg(OSObject *target, void *data_mbuf, void*, void*, void*);
     
     static errno_t filterInputFunc(void *cookie,
                                    ifnet_t interface, 

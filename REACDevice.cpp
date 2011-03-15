@@ -121,7 +121,7 @@ bool REACDevice::createProtocolListeners() {
             goto Next;
         }
         
-        if (!protocol->listen()) {
+        if (!protocol->start()) {
             IOLog("REACDevice[%p]::createProtocolListeners() - Error: failed to listen to '%s'.\n",
                   this, ifname->getCStringNoCopy());
             goto Next;

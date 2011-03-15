@@ -17,6 +17,7 @@
 
 #define MbufUtils          com_pereckerdal_driver_MbufUtils
 
+// TODO Private constructor?
 class MbufUtils {
 public:
     static size_t mbufTotalLength(mbuf_t mbuf);
