@@ -78,7 +78,7 @@ IOReturn MbufUtils::zeroMbuf(mbuf_t mbuf, UInt32 from, UInt32 len) {
         mbuf_setlen(mbuf, from+len);
     }
     
-    if (from+len > (UInt32) MbufUtils::mbufTotalLength(mbuf)) {
+    if (from+len > (UInt32) MbufUtils::mbufTotalMaxLength(mbuf)) {
         IOLog("MbufUtils::zeroMbuf(): Got insufficiently large buffer (mbuf too small: %d+%d > %d (%d)).\n",
               (int) from, (int) len, (int) MbufUtils::mbufTotalLength(mbuf),
               (int) MbufUtils::mbufTotalMaxLength(mbuf));
@@ -102,7 +102,7 @@ IOReturn MbufUtils::zeroMbuf(mbuf_t mbuf, UInt32 from, UInt32 len) {
 }
 
 IOReturn MbufUtils::copyFromBufferToMbuf(mbuf_t mbuf, UInt32 from, UInt32 bufferSize, UInt8 *inBuffer) {
-    if (bufferSize > (UInt32) MbufUtils::mbufTotalLength(mbuf)-from) {
+    if (bufferSize > (UInt32) MbufUtils::mbufTotalMaxLength(mbuf)-from) {
         IOLog("MbufUtils::copyFromBufferToMbuf(): Got insufficiently large buffer (mbuf too small).\n");
         return kIOReturnNoMemory;
     }

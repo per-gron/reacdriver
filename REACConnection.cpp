@@ -281,13 +281,13 @@ IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
     
     /// Do REAC data stream processing
     if (kIOReturnSuccess != dataStream->processPacket(&rph)) {
-        IOLog("REACConnection::pushSamples() - Error: Failed to process packet data stream.");
+        IOLog("REACConnection::pushSamples() - Error: Failed to process packet data stream.\n");
         goto Done;
     }
     
     /// Allocate mbuf
     if (0 != mbuf_allocpacket(MBUF_DONTWAIT, packetLen, NULL, &mbuf)) {
-        IOLog("REACConnection::pushSamples() - Error: Failed to allocate packet mbuf.");
+        IOLog("REACConnection::pushSamples() - Error: Failed to allocate packet mbuf.\n");
         goto Done;
     }
     
@@ -299,26 +299,26 @@ IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
     memset(&header.dhost, 0xff, ETHER_ADDR_LEN);
     memcpy(&header.type, REACConstants::PROTOCOL, sizeof(REACConstants::PROTOCOL));
     if (0 != mbuf_copyback(mbuf, 0, sizeof(EthernetHeader), &rph, MBUF_DONTWAIT)) {
-        IOLog("REACConnection::pushSamples() - Error: Failed to copy REAC header to packet mbuf.");
+        IOLog("REACConnection::pushSamples() - Error: Failed to copy REAC header to packet mbuf.\n");
         goto Done;
     }
     
     /// Copy REAC header
     if (0 != mbuf_copyback(mbuf, sizeof(EthernetHeader), sizeof(REACPacketHeader), &rph, MBUF_DONTWAIT)) {
-        IOLog("REACConnection::pushSamples() - Error: Failed to copy REAC header to packet mbuf.");
+        IOLog("REACConnection::pushSamples() - Error: Failed to copy REAC header to packet mbuf.\n");
         goto Done;
     }
     
     /// Copy sample data
     if (NULL == sampleBuffer) {
         if (kIOReturnSuccess != MbufUtils::zeroMbuf(mbuf, sampleOffset, samplesSize)) {
-            IOLog("REACConnection::pushSamples() - Error: Failed to zero sample data in mbuf.");
+            IOLog("REACConnection::pushSamples() - Error: Failed to zero sample data in mbuf.\n");
             goto Done;
         }
     }
     else {
         if (kIOReturnSuccess != MbufUtils::copyFromBufferToMbuf(mbuf, sampleOffset, bufSize, sampleBuffer)) {
-            IOLog("REACConnection::pushSamples() - Error: Failed to copy sample data to packet mbuf.");
+            IOLog("REACConnection::pushSamples() - Error: Failed to copy sample data to packet mbuf.\n");
             goto Done;
         }
     }
@@ -326,14 +326,14 @@ IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
     /// Copy packet ending
     if (0 != mbuf_copyback(mbuf, endingOffset, sizeof(REACConstants::ENDING),
                            REACConstants::ENDING, MBUF_DONTWAIT)) {
-        IOLog("REACConnection::pushSamples() - Error: Failed to copy ending to packet mbuf.");
+        IOLog("REACConnection::pushSamples() - Error: Failed to copy ending to packet mbuf.\n");
         goto Done;
     }
     
     /// Send packet
     if (0 != ifnet_output_raw(interface, 0, mbuf)) {
         mbuf = NULL; // ifnet_output_raw always frees the mbuf
-        IOLog("REACConnection::pushSamples() - Error: Failed to send packet.");
+        IOLog("REACConnection::pushSamples() - Error: Failed to send packet.\n");
         goto Done;
     }
     
@@ -392,10 +392,11 @@ void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, voi
     }
     
     // Check packet counter
-    if (proto->isConnected() /* This prunes a lost packet message when connecting */ && proto->lastCounter+1 != packetHeader.counter) {
+    if (proto->isConnected() /* This prunes a lost packet message when connecting */ &&
+        proto->lastCounter+1 != packetHeader.getCounter()) {
         if (!(65535 == proto->lastCounter && 0 == packetHeader.counter)) {
             IOLog("REACConnection[%p]::filterCommandGateMsg(): Lost packet [%d %d]\n",
-                  proto, proto->lastCounter, packetHeader.counter);
+                  proto, proto->lastCounter, packetHeader.getCounter());
         }
     }
     
@@ -437,7 +438,7 @@ void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, voi
         }
     }
     
-    proto->lastCounter = packetHeader.counter;
+    proto->lastCounter = packetHeader.getCounter();
 }
 
 

@@ -15,8 +15,19 @@
 
 OSDefineMetaClassAndStructors(REACDataStream, OSObject)
 
+
+const UInt8 REACDataStream::STREAM_TYPE_IDENTIFIERS[][2] = {
+    { 0x00, 0x00 }, // REAC_STREAM_FILLER
+    { 0xcd, 0xea }, // REAC_STREAM_CONTROL
+    { 0xcf, 0xea }, // REAC_STREAM_CONTROL2
+    { 0xce, 0xea }  // REAC_STREAM_FROM_SPLIT
+};
+
 bool REACDataStream::init() {
     if (false) goto Fail; // Supress the unused label warning
+    
+    counter = 0;
+    lastChecksum = 0;
     
     return true;
     
@@ -45,7 +56,7 @@ void REACDataStream::free() {
 }
 
 void REACDataStream::gotPacket(const REACPacketHeader *packet) {
-    UInt16 fill;
+    /*UInt16 fill;
     UInt16 *data = (UInt16 *)packet->data;
     
     switch (packet->type) {
@@ -65,11 +76,22 @@ void REACDataStream::gotPacket(const REACPacketHeader *packet) {
             // IOLog("REACConnection[%p]::processDataStream(): Got control [%d]\n", this, packet->counter);
             break;
             
-    }
+    }*/
 }
 
 IOReturn REACDataStream::processPacket(REACPacketHeader *packet) {
-    REACDataStream::applyChecksum(packet);
+    packet->setCounter(counter++);
+    
+    if (true) {
+        memcpy(packet->type, REACDataStream::STREAM_TYPE_IDENTIFIERS[REAC_STREAM_FILLER], sizeof(packet->type));
+        for (int i=0; i<31; i+=2) {
+            packet->data[i] = 0;
+            packet->data[i+1] = lastChecksum;
+        }
+    }
+    else {
+        lastChecksum = REACDataStream::applyChecksum(packet);
+    }
     
     return kIOReturnSuccess;
 }

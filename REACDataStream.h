@@ -20,9 +20,19 @@
 
 /* REAC packet header */
 struct REACPacketHeader {
-    UInt16 counter;
-    UInt16 type;
-    UInt8  data[32];
+    UInt8 counter[2];
+    UInt8 type[2];
+    UInt8 data[32];
+    
+    UInt16 getCounter() {
+        UInt16 ret = counter[0];
+        ret += ((UInt16) counter[1]) << 8;
+        return ret;
+    }
+    void setCounter(UInt16 c) {
+        counter[0] = c;
+        counter[1] = c >> 8;
+    }
 };
 
 // Handles the data stream part of a REAC stream (both input and output).
@@ -34,12 +44,14 @@ struct REACPacketHeader {
 class REACDataStream : public OSObject {
     OSDeclareDefaultStructors(REACDataStream)
 public:
-    enum REACStreamType { // TODO Endianness?
+    enum REACStreamType {
         REAC_STREAM_FILLER = 0,
-        REAC_STREAM_CONTROL = 0xeacd,
-        REAC_STREAM_CONTROL2 = 0xeacf,
-        REAC_STREAM_FROM_SPLIT = 0xeace
+        REAC_STREAM_CONTROL = 1,
+        REAC_STREAM_CONTROL2 = 2,
+        REAC_STREAM_FROM_SPLIT = 3
     };
+    
+    static const UInt8 STREAM_TYPE_IDENTIFIERS[][2];
     
     virtual bool init();
     static REACDataStream *with();
@@ -57,7 +69,9 @@ public:
     static UInt8 applyChecksum(REACPacketHeader *packet);
     
 protected:
-
+    
+    UInt16 counter;
+    UInt8  lastChecksum;
 };
 
 
