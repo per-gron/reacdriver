@@ -351,24 +351,31 @@ void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, voi
     UInt32 len = MbufUtils::mbufTotalLength(*data);
     REACPacketHeader packetHeader;
     
+    // Check packet length
     if (sizeof(REACPacketHeader)+samplesSize+sizeof(UInt16) != len) {
         IOLog("REACConnection[%p]::filterCommandGateMsg(): Got packet of invalid length\n", proto);
         return;
     }
     
+    // Check packet ending
+    UInt8 packetEnding[sizeof(REACConstants::ENDING)];
+    if (0 != mbuf_copydata(*data, sizeof(REACPacketHeader)+samplesSize, sizeof(REACConstants::ENDING), &packetEnding)) {
+        IOLog("REACConnection[%p]::filterCommandGateMsg(): Failed to fetch REAC packet ending\n", proto);
+        return;
+    }
+    if (0 != memcmp(packetEnding, REACConstants::ENDING, sizeof(packetEnding))) {
+        // Incorrect ending. Not a REAC packet?
+        IOLog("REACConnection[%p]::filterCommandGateMsg(): Incorrect packet ending.\n", proto);
+        return;
+    }
+    
+    // Fetch packet header
     if (0 != mbuf_copydata(*data, 0, sizeof(REACPacketHeader), &packetHeader)) {
         IOLog("REACConnection[%p]::filterCommandGateMsg(): Failed to fetch REAC packet header\n", proto);
         return;
     }
     
-    // TODO Check if the ending of the packet is right. ATM not as easy to implement as it
-    // was when we copied the mbuf to a contiguous OSMalloc'd buffer.
-    //
-    // if (REAC_ENDING != (*((UInt16*)(((char*)buf)+sizeof(REACPacketHeader)+samplesSize)))) {
-    //     // Incorrect ending. Not a REAC packet?
-    //     goto Done;
-    // }
-    
+    // Check packet counter
     if (proto->isConnected() /* This prunes a lost packet message when connecting */ && proto->lastCounter+1 != packetHeader.counter) {
         if (!(65535 == proto->lastCounter && 0 == packetHeader.counter)) {
             IOLog("REACConnection[%p]::filterCommandGateMsg(): Lost packet [%d %d]\n",
