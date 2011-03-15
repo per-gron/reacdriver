@@ -106,12 +106,12 @@ bool REACDevice::createProtocolListeners() {
         }
         
         protocol = REACConnection::withInterface(getWorkLoop(),
-                                               interface,
-                                               REACConnection::REAC_SPLIT,
-                                               &REACDevice::connectionCallback,
-                                               &REACDevice::samplesCallback,
-                                               this, // Cookie A (the REACAudioDevice)
-                                               NULL); // Cookie B (the REACAudioEngine)
+                                                 interface,
+                                                 REACConnection::REAC_SPLIT,
+                                                 &REACDevice::connectionCallback,
+                                                 &REACDevice::samplesCallback,
+                                                 this, // Cookie A (the REACAudioDevice)
+                                                 NULL); // Cookie B (the REACAudioEngine)
         ifnet_release(interface);
         
         if (NULL == protocol) {

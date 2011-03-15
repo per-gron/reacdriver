@@ -49,7 +49,9 @@ protected:
     
 public:
     
-    void processDataStream(const REACPacketHeader *packet);
+    void gotPacket(const REACPacketHeader *packet);
+    void processPacket(const REACPacketHeader *packet);
+    
     static bool checkChecksum(const REACPacketHeader *packet);
     static UInt8 applyChecksum(REACPacketHeader *packet);
     

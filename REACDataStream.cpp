@@ -44,7 +44,7 @@ void REACDataStream::free() {
     super::free();
 }
 
-void REACDataStream::processDataStream(const REACPacketHeader *packet) {
+void REACDataStream::gotPacket(const REACPacketHeader *packet) {
     UInt16 fill;
     UInt16 *data = (UInt16 *)packet->data;
     
@@ -66,6 +66,10 @@ void REACDataStream::processDataStream(const REACPacketHeader *packet) {
             break;
             
     }
+}
+
+void REACDataStream::processPacket(const REACPacketHeader *packet) {
+    
 }
 
 bool REACDataStream::checkChecksum(const REACPacketHeader *packet) {

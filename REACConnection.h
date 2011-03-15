@@ -98,7 +98,7 @@ public:
     
     const REACDeviceInfo *getDeviceInfo() const;
     bool isListening() const { return listening; }
-    bool isConnected() const { return connected; }
+    bool isConnected() const { return NULL != dataStream; }
     // If you want to continue using the ifnet_t object, make sure to call
     // ifnet_reference on it, as REACConnection will release it when it is freed.
     ifnet_t getInterface() const { return interface; }
@@ -127,7 +127,7 @@ protected:
     // Connection state variables
     REACMode            mode;
     bool                listening;
-    bool                connected;
+    REACDataStream     *dataStream;
     REACDeviceInfo     *deviceInfo;
     UInt16              lastCounter; // Tracks input REAC counter
     
