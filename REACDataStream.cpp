@@ -15,7 +15,36 @@
 
 OSDefineMetaClassAndStructors(REACDataStream, OSObject)
 
-void REACDataStream::processDataStream(const REACPacketHeader* packet) {
+bool REACDataStream::init() {
+    if (false) goto Fail; // Supress the unused label warning
+    
+    return true;
+    
+Fail:
+    deinit();
+    return false;
+}
+
+REACDataStream *REACDataStream::with() {
+    REACDataStream *s = new REACDataStream;
+    if (NULL == s) return NULL;
+    bool result = s->init();
+    if (!result) {
+        s->release();
+        return NULL;
+    }
+    return s;
+}
+
+void REACDataStream::deinit() {
+}
+
+void REACDataStream::free() {
+    deinit();
+    super::free();
+}
+
+void REACDataStream::processDataStream(const REACPacketHeader *packet) {
     UInt16 fill;
     UInt16 *data = (UInt16 *)packet->data;
     

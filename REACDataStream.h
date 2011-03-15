@@ -41,7 +41,7 @@ public:
     };
     
     virtual bool init();
-    static REACDataStream* with();
+    static REACDataStream *with();
 protected:
     // Object destruction method that is used by free, and init on failure.
     virtual void deinit();

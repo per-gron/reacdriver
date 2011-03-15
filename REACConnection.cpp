@@ -24,8 +24,8 @@ OSDefineMetaClassAndStructors(REACConnection, OSObject)
 bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_, REACMode mode_,
                                        reac_connection_callback_t connectionCallback_,
                                        reac_samples_callback_t samplesCallback_,
-                                       void* cookieA_,
-                                       void* cookieB_) {
+                                       void *cookieA_,
+                                       void *cookieB_) {
     if (NULL == workLoop_) {
         goto Fail;
     }
@@ -82,12 +82,12 @@ Fail:
     return false;
 }
 
-REACConnection* REACConnection::withInterface(IOWorkLoop *workLoop, ifnet_t interface, REACMode mode,
+REACConnection *REACConnection::withInterface(IOWorkLoop *workLoop, ifnet_t interface, REACMode mode,
                                               reac_connection_callback_t connectionCallback,
                                               reac_samples_callback_t samplesCallback,
-                                              void* cookieA,
-                                              void* cookieB) {
-    REACConnection* p = new REACConnection;
+                                              void *cookieA,
+                                              void *cookieB) {
+    REACConnection *p = new REACConnection;
     if (NULL == p) return NULL;
     bool result = p->initWithInterface(workLoop, interface, mode, connectionCallback, samplesCallback, cookieA, cookieB);
     if (!result) {
@@ -225,7 +225,7 @@ Done:
     return result;
 }
 
-const REACDeviceInfo* REACConnection::getDeviceInfo() const {
+const REACDeviceInfo *REACConnection::getDeviceInfo() const {
     return deviceInfo;
 }
 
@@ -415,6 +415,6 @@ errno_t REACConnection::filterInputFunc(void *cookie,
 }
 
 void REACConnection::filterDetachedFunc(void *cookie,
-                                      ifnet_t interface) {
+                                        ifnet_t interface) {
     // IOLog("REACConnection[%p]::filterDetachedFunc()\n", cookie);
 }

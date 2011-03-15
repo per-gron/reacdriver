@@ -71,16 +71,16 @@ public:
         REAC_MASTER, REAC_SLAVE, REAC_SPLIT
     };
     
-    virtual bool initWithInterface(IOWorkLoop* workLoop, ifnet_t interface, REACMode mode,
+    virtual bool initWithInterface(IOWorkLoop *workLoop, ifnet_t interface, REACMode mode,
                                    reac_connection_callback_t connectionCallback,
                                    reac_samples_callback_t samplesCallback,
-                                   void* cookieA,
-                                   void* cookieB);
-    static REACConnection* withInterface(IOWorkLoop* workLoop, ifnet_t interface, REACMode mode,
+                                   void *cookieA,
+                                   void *cookieB);
+    static REACConnection *withInterface(IOWorkLoop *workLoop, ifnet_t interface, REACMode mode,
                                        reac_connection_callback_t connectionCallback,
                                        reac_samples_callback_t samplesCallback,
-                                       void* cookieA,
-                                       void* cookieB);
+                                       void *cookieA,
+                                       void *cookieB);
 protected:
     // Object destruction method that is used by free, and initWithInterface on failure.
     virtual void deinit();
@@ -96,7 +96,7 @@ public:
     // numSamples isn't == REAC_SAMPLES_PER_PACKET
     IOReturn pushSamples(UInt32 bufSize, UInt8 *sampleBuffer);
     
-    const REACDeviceInfo* getDeviceInfo() const;
+    const REACDeviceInfo *getDeviceInfo() const;
     bool isListening() const { return listening; }
     bool isConnected() const { return connected; }
     // If you want to continue using the ifnet_t object, make sure to call
@@ -117,8 +117,8 @@ protected:
     // Callback variables
     reac_samples_callback_t samplesCallback;
     reac_connection_callback_t connectionCallback;
-    void* cookieA;
-    void* cookieB;
+    void *cookieA;
+    void *cookieB;
     
     // Variables for keeping track of when a connection is lost
     UInt64              lastSeenConnectionCounter;
