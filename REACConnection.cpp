@@ -257,28 +257,28 @@ size_t REACConnection::mbufTotalLength(mbuf_t mbuf) {
     return len;
 }
 
-#define next_mbuf() \
+#define next_mbuf_macro() \
     mbuf = mbuf_next(mbuf); \
     if (!mbuf) { \
         /* This should never happen */ \
-        IOLog("REACConnection::next_mbuf(): Internal error (couldn't fetch next mbuf).\n"); \
+        IOLog("REACConnection::next_mbuf_macro(): Internal error (couldn't fetch next mbuf).\n"); \
         return kIOReturnInternalError; \
     } \
     mbufBuffer = (UInt8 *)mbuf_data(mbuf); \
     mbufLength = mbuf_len(mbuf);
 
-#define ensure_mbuf() \
+#define ensure_mbuf_macro() \
     while (0 == mbufLength) { \
-        next_mbuf(); \
+        next_mbuf_macro(); \
     }
 
-#define skip_mbuf() \
+#define skip_mbuf_macro() \
     { \
         UInt32 skip = from; \
         while (skip) { \
             if (skip >= mbufLength) { \
                 skip -= mbufLength; \
-                next_mbuf(); \
+                next_mbuf_macro(); \
             } \
             else { \
                 mbufLength -= skip; \
@@ -298,10 +298,10 @@ IOReturn REACConnection::zeroMbuf(mbuf_t mbuf, UInt32 from, UInt32 len) {
     size_t mbufLength = mbuf_len(mbuf);
     UInt32 bytesLeft = len;
     
-    skip_mbuf();
+    skip_mbuf_macro();
     
     while (bytesLeft) {
-        ensure_mbuf();
+        ensure_mbuf_macro();
         *mbufBuffer = 0;
         --bytesLeft;
     }
@@ -310,8 +310,40 @@ IOReturn REACConnection::zeroMbuf(mbuf_t mbuf, UInt32 from, UInt32 len) {
 }
 
 IOReturn REACConnection::copyFromBufferToMbuf(mbuf_t mbuf, UInt32 from, UInt32 bufferSize, UInt8 *inBuffer) {
-    // TODO Implement me
-    return kIOReturnError;
+    if (bufferSize > (UInt32) REACConnection::mbufTotalLength(mbuf)-from) {
+        IOLog("REACConnection::copyFromBufferToMbuf(): Got insufficiently large buffer (mbuf too small).\n");
+        return kIOReturnNoMemory;
+    }
+    
+    if (0 != bufferSize % (REAC_RESOLUTION*2)) {
+        IOLog("REACConnection::copyFromBufferToMbuf(): Buffer size must be a multiple of %d.\n", REAC_RESOLUTION*2);
+        return kIOReturnBadArgument;
+    }
+    
+    UInt8 *inBufferEnd = inBuffer + bufferSize;
+    UInt8 *mbufBuffer = (UInt8 *)mbuf_data(mbuf);
+    size_t mbufLength = mbuf_len(mbuf);
+    
+    skip_mbuf_macro();
+
+#   define mbuf_move_buffer_forward_macro() \
+        ++mbufBuffer; \
+        --mbufLength; \
+        ensure_mbuf_macro();
+    
+    while (inBuffer < inBufferEnd) {
+        *mbufBuffer = inBuffer[1]; mbuf_move_buffer_forward_macro();
+        *mbufBuffer = inBuffer[0]; mbuf_move_buffer_forward_macro();
+        *mbufBuffer = inBuffer[3]; mbuf_move_buffer_forward_macro();
+        
+        *mbufBuffer = inBuffer[2]; mbuf_move_buffer_forward_macro();
+        *mbufBuffer = inBuffer[5]; mbuf_move_buffer_forward_macro();
+        *mbufBuffer = inBuffer[4]; mbuf_move_buffer_forward_macro();
+        
+        inBuffer += REAC_RESOLUTION*2;
+    }
+    
+    return kIOReturnSuccess;
 }
 
 IOReturn REACConnection::copyFromMbufToBuffer(mbuf_t mbuf, UInt32 from, UInt32 bufferSize, UInt8 *inBuffer) {
@@ -320,16 +352,21 @@ IOReturn REACConnection::copyFromMbufToBuffer(mbuf_t mbuf, UInt32 from, UInt32 b
         return kIOReturnNoMemory;
     }
     
+    if (0 != bufferSize % (REAC_RESOLUTION*2)) {
+        IOLog("REACConnection::copyFromMbufToBuffer(): Buffer size must be a multiple of %d.\n", REAC_RESOLUTION*2);
+        return kIOReturnBadArgument;
+    }
+    
     UInt8 *inBufferEnd = inBuffer + bufferSize;
     UInt8 intermediaryBuffer[6];
     UInt8 *mbufBuffer = (UInt8 *)mbuf_data(mbuf);
     size_t mbufLength = mbuf_len(mbuf);
     
-    skip_mbuf();
+    skip_mbuf_macro();
     
     while (inBuffer < inBufferEnd) {
         for (UInt32 i=0; i<sizeof(intermediaryBuffer); i++) {
-            ensure_mbuf();
+            ensure_mbuf_macro();
             
             intermediaryBuffer[i] = *mbufBuffer;
             ++mbufBuffer;
