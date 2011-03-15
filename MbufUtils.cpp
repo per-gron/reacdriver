@@ -15,7 +15,7 @@
 // Double-evaluation caveats apply
 #define min_macro(a, b) ((a) < (b) ? (a) : (b))
 
-size_t MbufUtils::mbufAttemptToSetLength(mbuf_t mbuf, size_t targetLength) {
+size_t MbufUtils::attemptToSetLength(mbuf_t mbuf, size_t targetLength) {
     size_t mbufLength = mbuf_len(mbuf);
     size_t mbufMaxLength = mbuf_maxlen(mbuf);
     if (targetLength > mbufLength && mbufMaxLength != mbufLength) {
@@ -24,6 +24,22 @@ size_t MbufUtils::mbufAttemptToSetLength(mbuf_t mbuf, size_t targetLength) {
         mbufLength = newBufLen;
     }
     return mbufLength;
+}
+
+IOReturn MbufUtils::setChainLength(mbuf_t mbuf, size_t targetLength) {
+    if (targetLength > MbufUtils::mbufTotalMaxLength(mbuf)) {
+        return kIOReturnNoMemory;
+    }
+    
+    while (targetLength) {
+        if (NULL == mbuf) {
+            return kIOReturnInternalError;
+        }
+        targetLength -= MbufUtils::attemptToSetLength(mbuf, targetLength);
+        mbuf = mbuf_next(mbuf);
+    }
+    
+    return kIOReturnSuccess;
 }
 
 size_t MbufUtils::mbufTotalLength(mbuf_t mbuf) {
@@ -74,14 +90,8 @@ size_t MbufUtils::mbufTotalMaxLength(mbuf_t mbuf) {
     }
 
 IOReturn MbufUtils::zeroMbuf(mbuf_t mbuf, UInt32 from, UInt32 len) {
-    if (mbuf_len(mbuf) < from+len && from+len <= mbuf_maxlen(mbuf)) {
-        mbuf_setlen(mbuf, from+len);
-    }
-    
-    if (from+len > (UInt32) MbufUtils::mbufTotalMaxLength(mbuf)) {
-        IOLog("MbufUtils::zeroMbuf(): Got insufficiently large buffer (mbuf too small: %d+%d > %d (%d)).\n",
-              (int) from, (int) len, (int) MbufUtils::mbufTotalLength(mbuf),
-              (int) MbufUtils::mbufTotalMaxLength(mbuf));
+    if (from+len > (UInt32) MbufUtils::mbufTotalLength(mbuf)) {
+        IOLog("MbufUtils::zeroMbuf(): Got insufficiently large buffer.\n");
         return kIOReturnNoMemory;
     }
     
@@ -93,22 +103,51 @@ IOReturn MbufUtils::zeroMbuf(mbuf_t mbuf, UInt32 from, UInt32 len) {
     
     while (bytesLeft) {
         ensure_mbuf_macro();
-        mbufLength = MbufUtils::mbufAttemptToSetLength(mbuf, bytesLeft);
         *mbufBuffer = 0;
+        
+        ++mbufBuffer;
+        --mbufLength;
         --bytesLeft;
     }
     
     return kIOReturnSuccess;
 }
 
-IOReturn MbufUtils::copyFromBufferToMbuf(mbuf_t mbuf, UInt32 from, UInt32 bufferSize, UInt8 *inBuffer) {
-    if (bufferSize > (UInt32) MbufUtils::mbufTotalMaxLength(mbuf)-from) {
+IOReturn MbufUtils::copyFromBufferToMbuf(mbuf_t mbuf, UInt32 from, UInt32 bufferSize, void *data) {
+    if (bufferSize > (UInt32) MbufUtils::mbufTotalLength(mbuf)-from) {
         IOLog("MbufUtils::copyFromBufferToMbuf(): Got insufficiently large buffer (mbuf too small).\n");
         return kIOReturnNoMemory;
     }
     
+    UInt8 *inBuffer = (UInt8 *)data;
+    UInt8 *mbufBuffer = (UInt8 *)mbuf_data(mbuf);
+    size_t mbufLength = mbuf_len(mbuf);
+    UInt32 bytesLeft = bufferSize;
+    
+    skip_mbuf_macro();
+    
+    while (bytesLeft) {
+        ensure_mbuf_macro();
+        
+        *mbufBuffer = *inBuffer;
+        
+        ++mbufBuffer;
+        ++inBuffer;
+        --mbufLength;
+        --bytesLeft;
+    }
+    
+    return kIOReturnSuccess;
+}
+
+IOReturn MbufUtils::copyAudioFromBufferToMbuf(mbuf_t mbuf, UInt32 from, UInt32 bufferSize, UInt8 *inBuffer) {
+    if (bufferSize > (UInt32) MbufUtils::mbufTotalLength(mbuf)-from) {
+        IOLog("MbufUtils::copyAudioFromBufferToMbuf(): Got insufficiently large buffer (mbuf too small).\n");
+        return kIOReturnNoMemory;
+    }
+    
     if (0 != bufferSize % (REAC_RESOLUTION*2)) {
-        IOLog("MbufUtils::copyFromBufferToMbuf(): Buffer size must be a multiple of %d.\n", REAC_RESOLUTION*2);
+        IOLog("MbufUtils::copyAudioFromBufferToMbuf(): Buffer size must be a multiple of %d.\n", REAC_RESOLUTION*2);
         return kIOReturnBadArgument;
     }
     
@@ -120,18 +159,16 @@ IOReturn MbufUtils::copyFromBufferToMbuf(mbuf_t mbuf, UInt32 from, UInt32 buffer
 
 #   define mbuf_move_buffer_forward_macro() \
         ++mbufBuffer; \
-        --mbufLength; \
-        ensure_mbuf_macro(); \
-        mbufLength = MbufUtils::mbufAttemptToSetLength(mbuf, bytesLeft);
+        --mbufLength;
     
     while (bytesLeft) {
-        *mbufBuffer = inBuffer[1]; mbuf_move_buffer_forward_macro();
-        *mbufBuffer = inBuffer[0]; mbuf_move_buffer_forward_macro();
-        *mbufBuffer = inBuffer[3]; mbuf_move_buffer_forward_macro();
+        ensure_mbuf_macro(); *mbufBuffer = inBuffer[1]; mbuf_move_buffer_forward_macro();
+        ensure_mbuf_macro(); *mbufBuffer = inBuffer[0]; mbuf_move_buffer_forward_macro();
+        ensure_mbuf_macro(); *mbufBuffer = inBuffer[3]; mbuf_move_buffer_forward_macro();
         
-        *mbufBuffer = inBuffer[2]; mbuf_move_buffer_forward_macro();
-        *mbufBuffer = inBuffer[5]; mbuf_move_buffer_forward_macro();
-        *mbufBuffer = inBuffer[4]; mbuf_move_buffer_forward_macro();
+        ensure_mbuf_macro(); *mbufBuffer = inBuffer[2]; mbuf_move_buffer_forward_macro();
+        ensure_mbuf_macro(); *mbufBuffer = inBuffer[5]; mbuf_move_buffer_forward_macro();
+        ensure_mbuf_macro(); *mbufBuffer = inBuffer[4]; mbuf_move_buffer_forward_macro();
         
         inBuffer += REAC_RESOLUTION*2;
         bytesLeft -= REAC_RESOLUTION*2;
@@ -140,14 +177,14 @@ IOReturn MbufUtils::copyFromBufferToMbuf(mbuf_t mbuf, UInt32 from, UInt32 buffer
     return kIOReturnSuccess;
 }
 
-IOReturn MbufUtils::copyFromMbufToBuffer(mbuf_t mbuf, UInt32 from, UInt32 bufferSize, UInt8 *inBuffer) {
+IOReturn MbufUtils::copyAudioFromMbufToBuffer(mbuf_t mbuf, UInt32 from, UInt32 bufferSize, UInt8 *inBuffer) {
     if (bufferSize > (UInt32) MbufUtils::mbufTotalLength(mbuf)-from) {
-        IOLog("MbufUtils::copyFromMbufToBuffer(): Got insufficiently large buffer (mbuf too small).\n");
+        IOLog("MbufUtils::copyAudioFromMbufToBuffer(): Got insufficiently large buffer (mbuf too small).\n");
         return kIOReturnNoMemory;
     }
     
     if (0 != bufferSize % (REAC_RESOLUTION*2)) {
-        IOLog("MbufUtils::copyFromMbufToBuffer(): Buffer size must be a multiple of %d.\n", REAC_RESOLUTION*2);
+        IOLog("MbufUtils::copyAudioFromMbufToBuffer(): Buffer size must be a multiple of %d.\n", REAC_RESOLUTION*2);
         return kIOReturnBadArgument;
     }
     

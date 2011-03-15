@@ -286,7 +286,8 @@ IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
     }
     
     /// Allocate mbuf
-    if (0 != mbuf_allocpacket(MBUF_DONTWAIT, packetLen, NULL, &mbuf)) {
+    if (0 != mbuf_allocpacket(MBUF_DONTWAIT, packetLen, NULL, &mbuf) ||
+        kIOReturnSuccess != MbufUtils::setChainLength(mbuf, packetLen)) {
         IOLog("REACConnection::pushSamples() - Error: Failed to allocate packet mbuf.\n");
         goto Done;
     }
@@ -298,37 +299,42 @@ IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
     memset(&header.shost, 0xff, ETHER_ADDR_LEN); // TODO
     memset(&header.dhost, 0xff, ETHER_ADDR_LEN);
     memcpy(&header.type, REACConstants::PROTOCOL, sizeof(REACConstants::PROTOCOL));
-    if (0 != mbuf_copyback(mbuf, 0, sizeof(EthernetHeader), &rph, MBUF_DONTWAIT)) {
+    if (kIOReturnSuccess != MbufUtils::copyFromBufferToMbuf(mbuf, 0, sizeof(EthernetHeader), &header)) {
         IOLog("REACConnection::pushSamples() - Error: Failed to copy REAC header to packet mbuf.\n");
         goto Done;
     }
     
     /// Copy REAC header
-    if (0 != mbuf_copyback(mbuf, sizeof(EthernetHeader), sizeof(REACPacketHeader), &rph, MBUF_DONTWAIT)) {
+    if (kIOReturnSuccess != MbufUtils::copyFromBufferToMbuf(mbuf, sizeof(EthernetHeader), sizeof(REACPacketHeader), &rph)) {
         IOLog("REACConnection::pushSamples() - Error: Failed to copy REAC header to packet mbuf.\n");
         goto Done;
     }
     
     /// Copy sample data
-    if (NULL == sampleBuffer) {
+    if (NULL != sampleBuffer) {
+        if (kIOReturnSuccess != MbufUtils::copyAudioFromBufferToMbuf(mbuf, sampleOffset, bufSize, sampleBuffer)) {
+            IOLog("REACConnection::pushSamples() - Error: Failed to copy sample data to packet mbuf.\n");
+            goto Done;
+        }
+    }
+    else {
         if (kIOReturnSuccess != MbufUtils::zeroMbuf(mbuf, sampleOffset, samplesSize)) {
             IOLog("REACConnection::pushSamples() - Error: Failed to zero sample data in mbuf.\n");
             goto Done;
         }
     }
-    else {
-        if (kIOReturnSuccess != MbufUtils::copyFromBufferToMbuf(mbuf, sampleOffset, bufSize, sampleBuffer)) {
-            IOLog("REACConnection::pushSamples() - Error: Failed to copy sample data to packet mbuf.\n");
-            goto Done;
-        }
-    }
     
     /// Copy packet ending
-    if (0 != mbuf_copyback(mbuf, endingOffset, sizeof(REACConstants::ENDING),
-                           REACConstants::ENDING, MBUF_DONTWAIT)) {
-        IOLog("REACConnection::pushSamples() - Error: Failed to copy ending to packet mbuf.\n");
+    if (kIOReturnSuccess != MbufUtils::copyFromBufferToMbuf(mbuf, endingOffset,
+                                                            sizeof(REACConstants::ENDING), (void *)REACConstants::ENDING)) {
+        IOLog("REACConnection::pushSamples() - Error: Failed to copy ending to packet mbuf. %d %d %d\n",
+              (int) MbufUtils::mbufTotalLength(mbuf), (int) endingOffset, 2); // TODO Debug
         goto Done;
     }
+    
+    /* TODO Debug UInt8 *buf = IOMalloc(MbufUtils::mbufTotalLength(mbuf));
+    mbuf_copy
+    IOFree(buf);*/
     
     /// Send packet
     if (0 != ifnet_output_raw(interface, 0, mbuf)) {
@@ -423,10 +429,10 @@ void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, voi
                 const UInt32 bytesPerPacket = bytesPerSample * REAC_SAMPLES_PER_PACKET;
                 
                 if (inBufferSize != bytesPerPacket) {
-                    IOLog("REACConnection::copyFromMbufToBuffer(): Got incorrectly sized buffer (not the same as a packet).\n");
+                    IOLog("REACConnection::filterCommandGateMsg(): Got incorrectly sized buffer (not the same as a packet).\n");
                 }
                 else {
-                    MbufUtils::copyFromMbufToBuffer(*data, sizeof(REACPacketHeader), inBufferSize, inBuffer);
+                    MbufUtils::copyAudioFromMbufToBuffer(*data, sizeof(REACPacketHeader), inBufferSize, inBuffer);
                 }
             }
             
