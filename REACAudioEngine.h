@@ -33,15 +33,10 @@ class REACAudioEngine : public IOAudioEngine
     SInt32              mMuteIn[17];
     SInt32              mGain[17];
     
-    IOTimerEventSource *timerEventSource;
-    
     UInt32              blockSize;                // In sample frames -- fixed, as defined in the Info.plist (e.g. 8192)
     UInt32              numBlocks;
     UInt32              bufferOffsetFactor;
     UInt32              currentBlock;
-    
-    UInt64              blockTimeoutNS;
-    UInt64              nextTime;                // the estimated time the timer will fire next
 
     bool                duringHardwareInit;
     
@@ -80,8 +75,6 @@ public:
     void gotSamples(UInt8 **data, UInt32 *bufferSize);
     
 protected:
-    static void timerFired(OSObject *target, IOTimerEventSource *sender);
-    
     virtual bool initControls();
     
     static  IOReturn volumeChangeHandler(IOService *target, IOAudioControl *volumeControl, SInt32 oldValue, SInt32 newValue);

@@ -10,7 +10,6 @@
 #include <IOKit/audio/IOAudioDefines.h>
 #include <IOKit/IOLib.h>
 #include <IOKit/IOWorkLoop.h>
-#include <IOKit/IOTimerEventSource.h>
 
 #include "REACConnection.h"
 
@@ -52,6 +51,7 @@ bool REACAudioEngine::init(REACConnection* proto, OSDictionary *properties) {
         goto Done;
     }
     protocol = proto;
+    protocol->retain();
 
     if (!super::init(properties)) {
         goto Done;
@@ -73,7 +73,6 @@ bool REACAudioEngine::init(REACConnection* proto, OSDictionary *properties) {
     inputStream = outputStream = NULL;
     duringHardwareInit = FALSE;
     mLastValidSampleFrame = 0;
-    timerEventSource = NULL;
     result = true;
     
 Done:
@@ -113,11 +112,6 @@ bool REACAudioEngine::initHardware(IOService *provider) {
         setDescription(desc->getCStringNoCopy());
     }
     
-    // calculate our timeout in nanosecs, taking care to keep 64bits
-    blockTimeoutNS = blockSize;
-    blockTimeoutNS *= 1000000000;
-    blockTimeoutNS /= initialSampleRate.whole;
-    
     setSampleRate(&initialSampleRate);
     setSampleOffset(blockSize*bufferOffsetFactor);
     setClockIsStable(FALSE);
@@ -129,15 +123,7 @@ bool REACAudioEngine::initHardware(IOService *provider) {
     if (!wl) {
         goto Done;
     }
-    
-    timerEventSource = IOTimerEventSource::timerEventSource(this, timerFired);
-    
-    if (NULL == timerEventSource) {
-        goto Done;
-    }
-    
-    workLoop->addEventSource(timerEventSource);
-        
+            
     result = true;
     
 Done:
@@ -248,6 +234,10 @@ Done:
 void REACAudioEngine::free() {
     //IOLog("REACAudioEngine[%p]::free()\n", this);
     
+    if (NULL != protocol) {
+        protocol->release();
+    }
+    
     if (NULL != mInBuffer) {
         IOFree(mInBuffer, mInBufferSize);
         mInBuffer = NULL;
@@ -256,14 +246,7 @@ void REACAudioEngine::free() {
         IOFree(mOutBuffer, mOutBufferSize);
         mOutBuffer = NULL;
     }
-    
-    if (NULL != timerEventSource) {
-        timerEventSource->cancelTimeout();
-        workLoop->removeEventSource(timerEventSource);
-        timerEventSource->release();
-        timerEventSource = NULL;
-    }
-    
+        
     super::free();
 }
 
@@ -285,25 +268,11 @@ IOReturn REACAudioEngine::performAudioEngineStart() {
     takeTimeStamp(false);
     currentBlock = 0;
     
-    if (REACConnection::REAC_MASTER == protocol->getMode()) {
-        timerEventSource->setTimeout(blockTimeoutNS);
-        
-        uint64_t time;
-        clock_get_uptime(&time);
-        absolutetime_to_nanoseconds(time, &nextTime);
-        
-        nextTime += blockTimeoutNS;
-    }
-    
     return kIOReturnSuccess;
 }
 
 IOReturn REACAudioEngine::performAudioEngineStop() {
     //IOLog("REACAudioEngine[%p]::performAudioEngineStop()\n", this);
-         
-    if (NULL != timerEventSource) {
-        timerEventSource->cancelTimeout();
-    }
     
     return kIOReturnSuccess;
 }
@@ -334,11 +303,6 @@ IOReturn REACAudioEngine::performFormatChange(IOAudioStream *audioStream, const 
     }
     
     if (NULL != newSampleRate) {
-        if (!duringHardwareInit) {
-            UInt64 newblockTime = blockSize;
-            newblockTime *= 1000000000;
-            blockTimeoutNS = newblockTime / newSampleRate->whole;
-        }
     }
     
     return kIOReturnSuccess;
@@ -368,45 +332,6 @@ void REACAudioEngine::gotSamples(UInt8 **data, UInt32 *bufferSize) {
         if (currentBlock >= numBlocks) {
             currentBlock = 0;
             takeTimeStamp();
-        }
-    }
-}
-
-void REACAudioEngine::timerFired(OSObject *target, IOTimerEventSource *sender) {
-    if (NULL != target) {
-        REACAudioEngine  *audioEngine = OSDynamicCast(REACAudioEngine, target);
-        UInt64            thisTimeNS;
-        uint64_t          time;
-        SInt64            diff;
-        
-        if (NULL != audioEngine) {
-            if (REACConnection::REAC_MASTER != audioEngine->protocol->getMode()) {
-                // This should never happen.
-                IOLog("REACAudioEngine::timerFired(): Internal error.\n");
-                return;
-            }
-            
-            // make sure we have a client, and thus new data so we don't keep on 
-            // just looping around the last client's last buffer!    
-            IOAudioStream *outStream = audioEngine->getAudioStream(kIOAudioStreamDirectionOutput, 1);
-            if (outStream->numClients == 0) {
-                // it has, so clean the buffer 
-                // memset((UInt8*)audioEngine->mThruBuffer, 0, audioEngine->mBufferSize);
-            }
-            
-            audioEngine->currentBlock++;
-            if (audioEngine->currentBlock >= audioEngine->numBlocks) {
-                audioEngine->currentBlock = 0;
-                audioEngine->takeTimeStamp();
-            }
-            
-            // Calculate next time to fire, by taking the time and comparing it to the time we requested.                                 
-            clock_get_uptime(&time);
-            absolutetime_to_nanoseconds(time, &thisTimeNS);
-            // This next calculation must be signed or we will introduce distortion after only a couple of vectors
-            diff = ((SInt64)audioEngine->nextTime - (SInt64)thisTimeNS);
-            sender->setTimeout(audioEngine->blockTimeoutNS + diff);
-            audioEngine->nextTime += audioEngine->blockTimeoutNS;
         }
     }
 }

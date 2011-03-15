@@ -13,7 +13,7 @@
 #include <IOKit/IOTimerEventSource.h>
 #include <sys/errno.h>
 
-#define REAC_CONNECTION_CHECK_TIMEOUT 400
+#define REAC_CONNECTION_CHECK_TIMEOUT_MS 400
 #define REAC_TIMEOUT_UNTIL_DISCONNECT 1000
 
 #define super OSObject
@@ -74,6 +74,16 @@ bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_
     
     ifnet_reference(interface_);
     interface = interface_;
+    
+    // Calculate our timeout in nanosecs, taking care to keep 64bits
+    if (REAC_MASTER == mode_) {
+        timeoutNS = 1000000000;
+        timeoutNS /= REAC_PACKETS_PER_SECOND;
+    }
+    else {
+        timeoutNS = REAC_CONNECTION_CHECK_TIMEOUT_MS;
+        timeoutNS *= 1000000;
+    }
     
     return true;
     
@@ -143,8 +153,15 @@ bool REACConnection::listen() {
         IOLog("REACConnection::listen() - Error: Failed to add timer event source to work loop!\n");
         return false;
     }
-    timerEventSource->setTimeoutMS(REAC_CONNECTION_CHECK_TIMEOUT);
     
+    
+    timerEventSource->setTimeout(timeoutNS);
+    
+    uint64_t time;
+    clock_get_uptime(&time);
+    absolutetime_to_nanoseconds(time, &nextTime);
+    nextTime += timeoutNS;
+        
     iff_filter filter;
     filter.iff_cookie = this;
     filter.iff_name = "REAC driver input filter";
@@ -245,25 +262,33 @@ void REACConnection::timerFired(OSObject *target, IOTimerEventSource *sender) {
     REACConnection *proto = OSDynamicCast(REACConnection, target);
     if (NULL == proto) {
         // This should never happen
-        IOLog("REACConnection::timerFired(): Internal error.\n");
+        IOLog("REACConnection::timerFired(): Internal error!\n");
         return;
     }
     
-    if (!proto->isConnected()) {
-        return;
-    }
-    
-    if ((proto->connectionCounter - proto->lastSeenConnectionCounter)*REAC_CONNECTION_CHECK_TIMEOUT > REAC_TIMEOUT_UNTIL_DISCONNECT) {
-        proto->dataStream->release();
-        proto->dataStream = NULL;
-        if (NULL != proto->connectionCallback) {
-            proto->connectionCallback(proto, &proto->cookieA, &proto->cookieB, NULL);
+    if (proto->isConnected()) {
+        if ((proto->connectionCounter - proto->lastSeenConnectionCounter)*proto->timeoutNS >
+                (UInt64)REAC_TIMEOUT_UNTIL_DISCONNECT*1000000) {
+            proto->dataStream->release();
+            proto->dataStream = NULL;
+            if (NULL != proto->connectionCallback) {
+                proto->connectionCallback(proto, &proto->cookieA, &proto->cookieB, NULL);
+            }
         }
+        
+        proto->connectionCounter++;
     }
     
-    proto->connectionCounter++;
-    
-    sender->setTimeoutMS(REAC_CONNECTION_CHECK_TIMEOUT);
+    // Calculate next time to fire, by taking the time and comparing it to the time we requested.                                 
+    UInt64            thisTimeNS;
+    uint64_t          time;
+    SInt64            diff;
+    clock_get_uptime(&time);
+    absolutetime_to_nanoseconds(time, &thisTimeNS);
+    // This next calculation must be signed or we will introduce distortion after only a couple of vectors
+    diff = ((SInt64)proto->nextTime - (SInt64)thisTimeNS);
+    sender->setTimeout(proto->timeoutNS + diff);
+    proto->nextTime += proto->timeoutNS;
 }
 
 void REACConnection::copyFromMbufToBuffer(REACDeviceInfo *di, mbuf_t *data, int from, int to, UInt8 *inBuffer, int bufferSize) {

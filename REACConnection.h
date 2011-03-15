@@ -109,6 +109,8 @@ protected:
     IOWorkLoop         *workLoop;
     IOTimerEventSource *timerEventSource;
     IOCommandGate      *filterCommandGate;
+    UInt64              timeoutNS;
+    UInt64              nextTime;                // the estimated time the timer will fire next
     
     // Network handles
     ifnet_t             interface;
