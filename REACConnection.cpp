@@ -13,6 +13,8 @@
 #include <IOKit/IOTimerEventSource.h>
 #include <sys/errno.h>
 
+#include "MbufUtils.h"
+
 #define REAC_CONNECTION_CHECK_TIMEOUT_MS 400
 #define REAC_TIMEOUT_UNTIL_DISCONNECT 1000
 
@@ -249,144 +251,6 @@ void REACConnection::timerFired(OSObject *target, IOTimerEventSource *sender) {
     proto->nextTime += proto->timeoutNS;
 }
 
-size_t REACConnection::mbufTotalLength(mbuf_t mbuf) {
-    size_t len = 0;
-    do {
-        len += mbuf_len(mbuf);
-    } while ((mbuf = mbuf_next(mbuf)));
-    return len;
-}
-
-#define next_mbuf_macro() \
-    mbuf = mbuf_next(mbuf); \
-    if (!mbuf) { \
-        /* This should never happen */ \
-        IOLog("REACConnection::next_mbuf_macro(): Internal error (couldn't fetch next mbuf).\n"); \
-        return kIOReturnInternalError; \
-    } \
-    mbufBuffer = (UInt8 *)mbuf_data(mbuf); \
-    mbufLength = mbuf_len(mbuf);
-
-#define ensure_mbuf_macro() \
-    while (0 == mbufLength) { \
-        next_mbuf_macro(); \
-    }
-
-#define skip_mbuf_macro() \
-    { \
-        UInt32 skip = from; \
-        while (skip) { \
-            if (skip >= mbufLength) { \
-                skip -= mbufLength; \
-                next_mbuf_macro(); \
-            } \
-            else { \
-                mbufLength -= skip; \
-                mbufBuffer += skip; \
-                skip = 0; \
-            } \
-        } \
-    }
-
-IOReturn REACConnection::zeroMbuf(mbuf_t mbuf, UInt32 from, UInt32 len) {
-    if (len > (UInt32) REACConnection::mbufTotalLength(mbuf) - from) {
-        IOLog("REACConnection::zeroMbuf(): Got insufficiently large buffer (mbuf too small).\n");
-        return kIOReturnNoMemory;
-    }
-    
-    UInt8 *mbufBuffer = (UInt8 *)mbuf_data(mbuf);
-    size_t mbufLength = mbuf_len(mbuf);
-    UInt32 bytesLeft = len;
-    
-    skip_mbuf_macro();
-    
-    while (bytesLeft) {
-        ensure_mbuf_macro();
-        *mbufBuffer = 0;
-        --bytesLeft;
-    }
-    
-    return kIOReturnSuccess;
-}
-
-IOReturn REACConnection::copyFromBufferToMbuf(mbuf_t mbuf, UInt32 from, UInt32 bufferSize, UInt8 *inBuffer) {
-    if (bufferSize > (UInt32) REACConnection::mbufTotalLength(mbuf)-from) {
-        IOLog("REACConnection::copyFromBufferToMbuf(): Got insufficiently large buffer (mbuf too small).\n");
-        return kIOReturnNoMemory;
-    }
-    
-    if (0 != bufferSize % (REAC_RESOLUTION*2)) {
-        IOLog("REACConnection::copyFromBufferToMbuf(): Buffer size must be a multiple of %d.\n", REAC_RESOLUTION*2);
-        return kIOReturnBadArgument;
-    }
-    
-    UInt8 *inBufferEnd = inBuffer + bufferSize;
-    UInt8 *mbufBuffer = (UInt8 *)mbuf_data(mbuf);
-    size_t mbufLength = mbuf_len(mbuf);
-    
-    skip_mbuf_macro();
-
-#   define mbuf_move_buffer_forward_macro() \
-        ++mbufBuffer; \
-        --mbufLength; \
-        ensure_mbuf_macro();
-    
-    while (inBuffer < inBufferEnd) {
-        *mbufBuffer = inBuffer[1]; mbuf_move_buffer_forward_macro();
-        *mbufBuffer = inBuffer[0]; mbuf_move_buffer_forward_macro();
-        *mbufBuffer = inBuffer[3]; mbuf_move_buffer_forward_macro();
-        
-        *mbufBuffer = inBuffer[2]; mbuf_move_buffer_forward_macro();
-        *mbufBuffer = inBuffer[5]; mbuf_move_buffer_forward_macro();
-        *mbufBuffer = inBuffer[4]; mbuf_move_buffer_forward_macro();
-        
-        inBuffer += REAC_RESOLUTION*2;
-    }
-    
-    return kIOReturnSuccess;
-}
-
-IOReturn REACConnection::copyFromMbufToBuffer(mbuf_t mbuf, UInt32 from, UInt32 bufferSize, UInt8 *inBuffer) {
-    if (bufferSize > (UInt32) REACConnection::mbufTotalLength(mbuf)-from) {
-        IOLog("REACConnection::copyFromMbufToBuffer(): Got insufficiently large buffer (mbuf too small).\n");
-        return kIOReturnNoMemory;
-    }
-    
-    if (0 != bufferSize % (REAC_RESOLUTION*2)) {
-        IOLog("REACConnection::copyFromMbufToBuffer(): Buffer size must be a multiple of %d.\n", REAC_RESOLUTION*2);
-        return kIOReturnBadArgument;
-    }
-    
-    UInt8 *inBufferEnd = inBuffer + bufferSize;
-    UInt8 intermediaryBuffer[6];
-    UInt8 *mbufBuffer = (UInt8 *)mbuf_data(mbuf);
-    size_t mbufLength = mbuf_len(mbuf);
-    
-    skip_mbuf_macro();
-    
-    while (inBuffer < inBufferEnd) {
-        for (UInt32 i=0; i<sizeof(intermediaryBuffer); i++) {
-            ensure_mbuf_macro();
-            
-            intermediaryBuffer[i] = *mbufBuffer;
-            ++mbufBuffer;
-            --mbufLength;
-        }
-        
-        inBuffer[0] = intermediaryBuffer[1];
-        inBuffer[1] = intermediaryBuffer[0];
-        inBuffer[2] = intermediaryBuffer[3];
-        
-        inBuffer[3] = intermediaryBuffer[2];
-        inBuffer[4] = intermediaryBuffer[5];
-        inBuffer[5] = intermediaryBuffer[4];
-        
-        inBuffer += REAC_RESOLUTION*2;
-    }
-    
-    return kIOReturnSuccess;
-}
-
 IOReturn REACConnection::getAndPushSamples() {
     UInt8 *sampleBuffer = NULL;
     UInt32 bufSize = 0;
@@ -425,14 +289,14 @@ IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
         goto Done;
     }
     if (NULL == sampleBuffer) {
-        if (kIOReturnSuccess != REACConnection::zeroMbuf(mbuf, sizeof(REACPacketHeader), samplesSize)) {
+        if (kIOReturnSuccess != MbufUtils::zeroMbuf(mbuf, sizeof(REACPacketHeader), samplesSize)) {
             IOLog("REACConnection::pushSamples() - Error: Failed to zero sample data in mbuf.");
             goto Done;
         }
     }
     else {
-        if (kIOReturnSuccess != REACConnection::copyFromBufferToMbuf(mbuf, sizeof(REACPacketHeader),
-                                                                     bufSize, sampleBuffer)) {
+        if (kIOReturnSuccess != MbufUtils::copyFromBufferToMbuf(mbuf, sizeof(REACPacketHeader),
+                                                                bufSize, sampleBuffer)) {
             IOLog("REACConnection::pushSamples() - Error: Failed to copy sample data to packet mbuf.");
             goto Done;
         }
@@ -470,7 +334,7 @@ void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, voi
     const int samplesSize = REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*proto->deviceInfo->in_channels;
     
     mbuf_t *data = (mbuf_t *)data_mbuf;
-    UInt32 len = REACConnection::mbufTotalLength(*data);
+    UInt32 len = MbufUtils::mbufTotalLength(*data);
     REACPacketHeader packetHeader;
     
     if (sizeof(REACPacketHeader)+samplesSize+sizeof(UInt16) != len) {
@@ -524,7 +388,7 @@ void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, voi
                     IOLog("REACConnection::copyFromMbufToBuffer(): Got incorrectly sized buffer (not the same as a packet).\n");
                 }
                 else {
-                    REACConnection::copyFromMbufToBuffer(*data, sizeof(REACPacketHeader), inBufferSize, inBuffer);
+                    MbufUtils::copyFromMbufToBuffer(*data, sizeof(REACPacketHeader), inBufferSize, inBuffer);
                 }
             }
             
