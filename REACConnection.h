@@ -56,6 +56,8 @@ typedef void(*reac_get_samples_callback_t)(REACConnection *proto, void **cookieA
 // TODO Private constructor/assignment operator/destructor?
 class REACConnection : public OSObject {
     OSDeclareDefaultStructors(REACConnection)
+    
+    static IOReturn getInterfaceMacAddress(ifnet_t interface, UInt8* addr, UInt32 addrLen);
 public:
     enum REACMode {
         REAC_MASTER, REAC_SLAVE, REAC_SPLIT
@@ -98,6 +100,7 @@ protected:
     UInt64              nextTime;                // the estimated time the timer will fire next
     
     // Network handles
+    UInt8               interfaceAddr[ETHER_ADDR_LEN];
     ifnet_t             interface;
     interface_filter_t  filterRef;
     

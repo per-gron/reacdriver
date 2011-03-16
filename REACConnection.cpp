@@ -12,6 +12,7 @@
 #include <IOKit/IOLib.h>
 #include <IOKit/IOTimerEventSource.h>
 #include <sys/errno.h>
+#include <sys/socket.h>
 
 #include "MbufUtils.h"
 
@@ -21,6 +22,53 @@
 #define super OSObject
 
 OSDefineMetaClassAndStructors(REACConnection, OSObject)
+
+
+// I can't find this class in any header (??)
+#define REACSockaddr              com_pereckerdal_driver_REACSockaddr
+struct REACSockaddr {
+    u_char  sdl_len;        /* Total length of sockaddr */
+    u_char  sdl_family;     /* AF_LINK */
+    u_short sdl_index;      /* if != 0, system given index for interface */
+    u_char  sdl_type;       /* interface type */
+    u_char  sdl_nlen;       /* interface name length, no trailing 0 reqd. */
+    u_char  sdl_alen;       /* link level address length */
+    u_char  sdl_slen;       /* link layer selector length */
+    char    sdl_data[16];   /* minimum work area, can be larger;
+                             contains both if name and ll address */
+};
+
+
+IOReturn REACConnection::getInterfaceMacAddress(ifnet_t interface, UInt8* resultAddr, UInt32 addrLen) {
+    ifaddr_t *addresses;
+    ifaddr_t *address;
+    REACSockaddr addr;
+    IOReturn ret = kIOReturnError;
+    
+    if (ETHER_ADDR_LEN != addrLen) {
+        return kIOReturnBadArgument;
+    }
+    
+    if (ifnet_get_address_list_family(interface, &addresses, AF_LINK)) {
+        return kIOReturnError;
+    }
+    
+    address = addresses;
+    while (*address) {
+        if (0 == ifaddr_address(*address, (sockaddr*) &addr, sizeof(addr))) {
+            if (addr.sdl_alen == ETHER_ADDR_LEN) {
+                memcpy(resultAddr, addr.sdl_data+addr.sdl_nlen, addrLen);
+                ret = kIOReturnSuccess;
+                break;
+            }
+        }
+        ++address;
+    }
+    
+    ifnet_free_address_list(addresses);
+    return ret;
+}
+
 
 
 bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_, REACMode mode_,
@@ -60,6 +108,7 @@ bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_
     // Hack: Pretend to be connected immediately
     deviceInfo = (REACDeviceInfo*) IOMalloc(sizeof(REACDeviceInfo));
     if (NULL == deviceInfo) {
+        IOLog("REACConnection::initWithInterface() - Error: Failed to allocate device info object.\n");
         goto Fail;
     }
     deviceInfo->addr[0] = 0x00;
@@ -83,6 +132,11 @@ bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_
     
     ifnet_reference(interface_);
     interface = interface_;
+    
+    if (kIOReturnSuccess != REACConnection::getInterfaceMacAddress(interface, interfaceAddr, sizeof(interfaceAddr))) {
+        IOLog("REACConnection::initWithInterface() - Error: Failed to get interface address.\n");
+        goto Fail;
+    }    
     
     // Calculate our timeout in nanosecs, taking care to keep 64bits
     if (REAC_MASTER == mode_) {
@@ -293,11 +347,14 @@ IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
     }
     
     /// Copy ethernet header
-    // ifnet_get_address_list  &  ifnet_free_address_list
-    // ifaddr_address
     EthernetHeader header;
-    memset(&header.shost, 0xff, ETHER_ADDR_LEN); // TODO
-    memset(&header.dhost, 0xff, ETHER_ADDR_LEN);
+    memcpy(header.shost, interfaceAddr, sizeof(header.shost));
+    if (REAC_SLAVE == mode) {
+        memcpy(header.dhost, deviceInfo->addr, sizeof(header.dhost));
+    }
+    else {
+        memset(header.dhost, 0xff, ETHER_ADDR_LEN);
+    }
     memcpy(&header.type, REACConstants::PROTOCOL, sizeof(REACConstants::PROTOCOL));
     if (kIOReturnSuccess != MbufUtils::copyFromBufferToMbuf(mbuf, 0, sizeof(EthernetHeader), &header)) {
         IOLog("REACConnection::pushSamples() - Error: Failed to copy REAC header to packet mbuf.\n");
@@ -327,14 +384,9 @@ IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
     /// Copy packet ending
     if (kIOReturnSuccess != MbufUtils::copyFromBufferToMbuf(mbuf, endingOffset,
                                                             sizeof(REACConstants::ENDING), (void *)REACConstants::ENDING)) {
-        IOLog("REACConnection::pushSamples() - Error: Failed to copy ending to packet mbuf. %d %d %d\n",
-              (int) MbufUtils::mbufTotalLength(mbuf), (int) endingOffset, 2); // TODO Debug
+        IOLog("REACConnection::pushSamples() - Error: Failed to copy ending to packet mbuf.\n");
         goto Done;
     }
-    
-    /* TODO Debug UInt8 *buf = IOMalloc(MbufUtils::mbufTotalLength(mbuf));
-    mbuf_copy
-    IOFree(buf);*/
     
     /// Send packet
     if (0 != ifnet_output_raw(interface, 0, mbuf)) {
