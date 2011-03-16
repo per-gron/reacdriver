@@ -87,10 +87,6 @@
 					<key>Name</key>
 					<string>en0</string>
 				</dict>
-				<dict>
-					<key>Name</key>
-					<string>en1</string>
-				</dict>
 			</array>
 			<key>IOClass</key>
 			<string>com_pereckerdal_driver_REACDevice</string>
