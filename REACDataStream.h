@@ -60,7 +60,7 @@ public:
         REAC_STREAM_FILLER = 0,
         REAC_STREAM_CONTROL = 1,
         REAC_STREAM_MASTER_ANNOUNCE = 2,
-        REAC_STREAM_FROM_SPLIT = 3
+        REAC_STREAM_SPLIT_ANNOUNCE = 3
     };
     
     static const UInt8 STREAM_TYPE_IDENTIFIERS[][2];

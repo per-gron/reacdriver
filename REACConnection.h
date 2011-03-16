@@ -57,7 +57,6 @@ typedef void(*reac_get_samples_callback_t)(REACConnection *proto, void **cookieA
 class REACConnection : public OSObject {
     OSDeclareDefaultStructors(REACConnection)
     
-    static IOReturn getInterfaceMacAddress(ifnet_t interface, UInt8* addr, UInt32 addrLen);
 public:
     enum REACMode {
         REAC_MASTER, REAC_SLAVE, REAC_SPLIT
@@ -125,10 +124,12 @@ protected:
     // Variables for keeping track of when a connection is lost
     UInt64              lastSeenConnectionCounter;
     UInt64              connectionCounter;
+    UInt64              lastSentAnnouncementCounter;
+    UInt16              splitAnnouncementCounter;
     
     // Connection state variables
     REACMode            mode;
-    UInt8               inChannels; // Only used in REAC_MASTER mode
+    UInt8               inChannels;  // Only used in REAC_MASTER mode
     UInt8               outChannels; // Only used in REAC_MASTER mode
     bool                started;
     bool                connected;
@@ -141,6 +142,7 @@ protected:
     IOReturn getAndPushSamples();
     // When sampleBuffer is NULL, the sample data will be zeros (and bufSize will be disregarded).
     IOReturn pushSamples(UInt32 bufSize, UInt8 *sampleBuffer);
+    IOReturn pushSplitAnnouncementPacket();
     
     static void filterCommandGateMsg(OSObject *target, void *data_mbuf, void*, void*, void*);
     
@@ -151,6 +153,7 @@ protected:
                                    char **frame_ptr);        
     static void filterDetachedFunc(void *cookie,
                                    ifnet_t interface);
+    static IOReturn getInterfaceMacAddress(ifnet_t interface, UInt8* addr, UInt32 addrLen);
     
 };
 

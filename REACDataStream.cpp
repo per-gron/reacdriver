@@ -17,7 +17,7 @@ const UInt8 REACDataStream::STREAM_TYPE_IDENTIFIERS[][2] = {
     { 0x00, 0x00 }, // REAC_STREAM_FILLER
     { 0xcd, 0xea }, // REAC_STREAM_CONTROL
     { 0xcf, 0xea }, // REAC_STREAM_MASTER_ANNOUNCE
-    { 0xce, 0xea }  // REAC_STREAM_FROM_SPLIT
+    { 0xce, 0xea }  // REAC_STREAM_SPLIT_ANNOUNCE
 };
 
 
