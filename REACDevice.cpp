@@ -112,7 +112,9 @@ bool REACDevice::createProtocolListeners() {
                                                  &REACDevice::samplesCallback,
                                                  &REACDevice::getSamplesCallback,
                                                  this, // Cookie A (the REACAudioDevice)
-                                                 NULL); // Cookie B (the REACAudioEngine)
+                                                 NULL, // Cookie B (the REACAudioEngine)
+                                                 16, // inChannels (in REAC_MASTER mode)
+                                                 8); // outChannels (in REAC_MASTER mode)
         ifnet_release(interface);
         
         if (NULL == protocol) {

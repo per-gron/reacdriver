@@ -14,9 +14,12 @@
 #include <libkern/c++/OSObject.h>
 #include <IOKit/IOReturn.h>
 
+#include "REACConstants.h"
+
 #define REACPacketHeader        com_pereckerdal_driver_REACPacketHeader
 #define REACDataStream          com_pereckerdal_driver_REACDataStream
 
+class com_pereckerdal_driver_REACConnection;
 
 /* REAC packet header */
 struct REACPacketHeader {
@@ -43,18 +46,27 @@ struct REACPacketHeader {
 // TODO Private constructor/assignment operator/destructor?
 class REACDataStream : public OSObject {
     OSDeclareDefaultStructors(REACDataStream)
+    
+    struct AnnouncePacket {
+        UInt8 unknown1[9];
+        UInt8 address[ETHER_ADDR_LEN];
+        UInt8 inChannels;
+        UInt8 outChannels;
+        UInt8 unknown2[4];
+    };
+    
 public:
     enum REACStreamType {
         REAC_STREAM_FILLER = 0,
         REAC_STREAM_CONTROL = 1,
-        REAC_STREAM_CONTROL2 = 2,
+        REAC_STREAM_MASTER_ANNOUNCE = 2,
         REAC_STREAM_FROM_SPLIT = 3
     };
     
     static const UInt8 STREAM_TYPE_IDENTIFIERS[][2];
     
-    virtual bool init();
-    static REACDataStream *with();
+    virtual bool initConnection(com_pereckerdal_driver_REACConnection *conn);
+    static REACDataStream *withConnection(com_pereckerdal_driver_REACConnection *conn);
 protected:
     // Object destruction method that is used by free, and init on failure.
     virtual void deinit();
@@ -70,8 +82,10 @@ public:
     
 protected:
     
-    UInt16 counter;
-    UInt8  lastChecksum;
+    com_pereckerdal_driver_REACConnection *connection;
+    UInt64          lastAnnouncePacket; // The counter of the last announce counter packet
+    UInt64          counter;
+    UInt8           lastChecksum;
 };
 
 

@@ -68,13 +68,17 @@ public:
                                    reac_samples_callback_t samplesCallback,
                                    reac_get_samples_callback_t getSamplesCallback,
                                    void *cookieA,
-                                   void *cookieB);
+                                   void *cookieB,
+                                   UInt8 inChannels = 0, // Only used in REAC_MASTER mode
+                                   UInt8 outChannels = 0); // Only used in REAC_MASTER mode
     static REACConnection *withInterface(IOWorkLoop *workLoop, ifnet_t interface, REACMode mode,
                                          reac_connection_callback_t connectionCallback,
                                          reac_samples_callback_t samplesCallback,
                                          reac_get_samples_callback_t getSamplesCallback,
                                          void *cookieA,
-                                         void *cookieB);
+                                         void *cookieB,
+                                         UInt8 inChannels = 0, // Only used in REAC_MASTER mode
+                                         UInt8 outChannels = 0); // Only used in REAC_MASTER mode
 protected:
     // Object destruction method that is used by free, and initWithInterface on failure.
     virtual void deinit();
@@ -90,6 +94,13 @@ public:
     // ifnet_reference on it, as REACConnection will release it when it is freed.
     ifnet_t getInterface() const { return interface; }
     REACMode getMode() const { return mode; }
+    IOReturn getInterfaceAddr(UInt32 len, UInt8 *addr) const {
+        if (sizeof(interfaceAddr) != len) return kIOReturnBadArgument;
+        memcpy(addr, interfaceAddr, len);
+        return kIOReturnSuccess;
+    }
+    UInt8 getInChannels() const { return inChannels; }
+    UInt8 getOutChannels() const { return outChannels; }
 
 protected:
     // IOKit handles
@@ -117,6 +128,8 @@ protected:
     
     // Connection state variables
     REACMode            mode;
+    UInt8               inChannels; // Only used in REAC_MASTER mode
+    UInt8               outChannels; // Only used in REAC_MASTER mode
     bool                started;
     bool                connected;
     REACDataStream     *dataStream;

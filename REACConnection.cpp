@@ -76,7 +76,9 @@ bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_
                                        reac_samples_callback_t samplesCallback_,
                                        reac_get_samples_callback_t getSamplesCallback_,
                                        void *cookieA_,
-                                       void *cookieB_) {
+                                       void *cookieB_,
+                                       UInt8 inChannels_,
+                                       UInt8 outChannels_) {
     if (NULL == workLoop_) {
         goto Fail;
     }
@@ -100,7 +102,7 @@ bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_
         goto Fail;
     }
     
-    dataStream = REACDataStream::with();
+    dataStream = REACDataStream::withConnection(this);
     if (NULL == dataStream) {
         goto Fail;
     }
@@ -129,6 +131,8 @@ bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_
     cookieA = cookieA_;
     cookieB = cookieB_;
     mode = mode_;
+    inChannels = inChannels_;
+    outChannels = outChannels_;
     
     ifnet_reference(interface_);
     interface = interface_;
@@ -160,11 +164,13 @@ REACConnection *REACConnection::withInterface(IOWorkLoop *workLoop, ifnet_t inte
                                               reac_samples_callback_t samplesCallback,
                                               reac_get_samples_callback_t getSamplesCallback,
                                               void *cookieA,
-                                              void *cookieB) {
+                                              void *cookieB,
+                                              UInt8 inChannels,
+                                              UInt8 outChannels) {
     REACConnection *p = new REACConnection;
     if (NULL == p) return NULL;
-    bool result = p->initWithInterface(workLoop, interface, mode, connectionCallback,
-                                       samplesCallback, getSamplesCallback, cookieA, cookieB);
+    bool result = p->initWithInterface(workLoop, interface, mode, connectionCallback, samplesCallback,
+                                       getSamplesCallback, cookieA, cookieB, inChannels, outChannels);
     if (!result) {
         p->release();
         return NULL;
@@ -315,7 +321,8 @@ IOReturn REACConnection::getAndPushSamples() {
 }
 
 IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
-    const UInt32 samplesSize = REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*deviceInfo->out_channels;
+    const UInt32 samplesSize = REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*
+                                (REAC_MASTER == mode ? inChannels : deviceInfo->out_channels);
     const UInt32 sampleOffset = sizeof(EthernetHeader)+sizeof(REACPacketHeader);
     const UInt32 endingOffset = sampleOffset+samplesSize;
     const UInt32 packetLen = endingOffset+sizeof(REACConstants::ENDING);

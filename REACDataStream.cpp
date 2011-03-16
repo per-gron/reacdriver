@@ -11,21 +11,25 @@
 
 #include <IOKit/IOLib.h>
 
-#define super OSObject
-
-OSDefineMetaClassAndStructors(REACDataStream, OSObject)
-
+#include "REACConnection.h"
 
 const UInt8 REACDataStream::STREAM_TYPE_IDENTIFIERS[][2] = {
     { 0x00, 0x00 }, // REAC_STREAM_FILLER
     { 0xcd, 0xea }, // REAC_STREAM_CONTROL
-    { 0xcf, 0xea }, // REAC_STREAM_CONTROL2
+    { 0xcf, 0xea }, // REAC_STREAM_MASTER_ANNOUNCE
     { 0xce, 0xea }  // REAC_STREAM_FROM_SPLIT
 };
 
-bool REACDataStream::init() {
+
+#define super OSObject
+
+OSDefineMetaClassAndStructors(REACDataStream, OSObject)
+
+bool REACDataStream::initConnection(REACConnection* conn) {
     if (false) goto Fail; // Supress the unused label warning
     
+    connection = conn;
+    lastAnnouncePacket = 0;
     counter = 0;
     lastChecksum = 0;
     
@@ -36,10 +40,10 @@ Fail:
     return false;
 }
 
-REACDataStream *REACDataStream::with() {
+REACDataStream *REACDataStream::withConnection(REACConnection *conn) {
     REACDataStream *s = new REACDataStream;
     if (NULL == s) return NULL;
-    bool result = s->init();
+    bool result = s->initConnection(conn);
     if (!result) {
         s->release();
         return NULL;
@@ -82,15 +86,45 @@ void REACDataStream::gotPacket(const REACPacketHeader *packet) {
 IOReturn REACDataStream::processPacket(REACPacketHeader *packet) {
     packet->setCounter(counter++);
     
-    if (true) {
+    if (counter-lastAnnouncePacket >= REAC_PACKETS_PER_SECOND) {
+        lastAnnouncePacket = counter;
+        
+        memcpy(packet->type, REACDataStream::STREAM_TYPE_IDENTIFIERS[REAC_STREAM_MASTER_ANNOUNCE], sizeof(packet->type));
+        
+        AnnouncePacket *ap = (AnnouncePacket *)packet->data;
+        ap->unknown1[0] = 0xff;
+        ap->unknown1[1] = 0xff;
+        ap->unknown1[2] = 0x01;
+        ap->unknown1[3] = 0x00;
+        ap->unknown1[4] = 0x01;
+        ap->unknown1[5] = 0x03;
+        ap->unknown1[6] = 0x0d;
+        ap->unknown1[7] = 0x01;
+        ap->unknown1[8] = 0x04;
+        
+        connection->getInterfaceAddr(sizeof(ap->address), ap->address);
+        
+        ap->inChannels = connection->getInChannels();
+        ap->outChannels = connection->getOutChannels();
+                                     
+        ap->unknown2[0] = 0x01;
+        ap->unknown2[1] = 0x00;
+        ap->unknown2[2] = 0x01;
+        ap->unknown2[3] = 0x00;
+        
+        memset(packet->data+sizeof(AnnouncePacket), 0, sizeof(packet->data)-sizeof(AnnouncePacket));
+        
+        REACDataStream::applyChecksum(packet);
+    }
+    else if (false) {
+        lastChecksum = REACDataStream::applyChecksum(packet);
+    }
+    else {
         memcpy(packet->type, REACDataStream::STREAM_TYPE_IDENTIFIERS[REAC_STREAM_FILLER], sizeof(packet->type));
         for (int i=0; i<31; i+=2) {
             packet->data[i] = 0;
             packet->data[i+1] = lastChecksum;
         }
-    }
-    else {
-        lastChecksum = REACDataStream::applyChecksum(packet);
     }
     
     return kIOReturnSuccess;
