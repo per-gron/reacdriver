@@ -97,11 +97,11 @@ bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_
         goto Fail;
     }
     
-    // TODO This is a hack
-    static const UInt8 counterfeitMac[] = {
-        0x00, 0x40, 0xab, 0xc4, 0xb7, 0x58
-    };
-    memcpy(interfaceAddr, counterfeitMac, sizeof(interfaceAddr));
+    // TODO This is a hack. It seems to be needless though.
+    //static const UInt8 counterfeitMac[] = {
+    //    0x00, 0x40, 0xab, 0xc4, 0xb7, 0x58
+    //};
+    //memcpy(interfaceAddr, counterfeitMac, sizeof(interfaceAddr));
     
     // Calculate our timeout in nanosecs, taking care to keep 64bits
     if (REAC_MASTER == mode_) {
@@ -244,39 +244,47 @@ void REACConnection::timerFired(OSObject *target, IOTimerEventSource *sender) {
         return;
     }
     
-    if (proto->isConnected()) {
-        if ((proto->connectionCounter - proto->lastSeenConnectionCounter)*proto->timeoutNS >
-                (UInt64)REAC_TIMEOUT_UNTIL_DISCONNECT*1000000) {
-            proto->connected = true;
-            if (NULL != proto->connectionCallback) {
-                proto->connectionCallback(proto, &proto->cookieA, &proto->cookieB, NULL);
-            }
-        }
-        
-        proto->connectionCounter++;
-    }
-    
-    if (REAC_MASTER == proto->mode) {
-        proto->getAndPushSamples();
-    }
-    else if (REAC_SPLIT == proto->mode) {
-        proto->lastSentAnnouncementCounter++;
-        if (proto->lastSentAnnouncementCounter*proto->timeoutNS >= 1000000000) {
-            proto->lastSentAnnouncementCounter = 0;
-            proto->pushSplitAnnouncementPacket();
-        }
-    }
-    
-    // Calculate next time to fire, by taking the time and comparing it to the time we requested.                                 
     UInt64            thisTimeNS;
     uint64_t          time;
     SInt64            diff;
-    clock_get_uptime(&time);
-    absolutetime_to_nanoseconds(time, &thisTimeNS);
-    // This next calculation must be signed or we will introduce distortion after only a couple of vectors
-    diff = ((SInt64)proto->nextTime - (SInt64)thisTimeNS);
-    sender->setTimeout(proto->timeoutNS + diff);
-    proto->nextTime += proto->timeoutNS;
+    
+    do {
+        if (proto->isConnected()) {
+            if ((proto->connectionCounter - proto->lastSeenConnectionCounter)*proto->timeoutNS >
+                (UInt64)REAC_TIMEOUT_UNTIL_DISCONNECT*1000000) {
+                proto->connected = true;
+                if (NULL != proto->connectionCallback) {
+                    proto->connectionCallback(proto, &proto->cookieA, &proto->cookieB, NULL);
+                }
+            }
+            
+            proto->connectionCounter++;
+        }
+        
+        if (REAC_MASTER == proto->mode) {
+            proto->getAndPushSamples();
+        }
+        else if (REAC_SPLIT == proto->mode) {
+            proto->lastSentAnnouncementCounter++;
+            if (proto->lastSentAnnouncementCounter*proto->timeoutNS >= 1000000000) {
+                proto->lastSentAnnouncementCounter = 0;
+                proto->pushSplitAnnouncementPacket();
+            }
+        }
+        
+        // Calculate next time to fire, by taking the time and comparing it to the time we requested.
+        clock_get_uptime(&time);
+        absolutetime_to_nanoseconds(time, &thisTimeNS);
+        proto->nextTime += proto->timeoutNS;
+        // This next calculation must be signed
+        diff = ((SInt64)proto->nextTime - (SInt64)thisTimeNS);
+        
+        if (diff < -((SInt64)proto->timeoutNS)*10) {
+            // TODO After a certain amount of lost packets we probably ought to skip
+            IOLog("REACConnection::timerFired(): Lost the time by %lld us\n", diff/1000);
+        }
+    } while (diff < 0);
+    sender->setTimeout(diff);
 }
 
 IOReturn REACConnection::getAndPushSamples() {
