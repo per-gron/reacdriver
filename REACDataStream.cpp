@@ -31,7 +31,12 @@ bool REACDataStream::initConnection(REACConnection* conn) {
     connection = conn;
     lastAnnouncePacket = 0;
     counter = 0;
-    lastChecksum = 0;
+    lastCdeaChecksum = 0;
+    
+    packetsUntilNextCdea = 0;
+    cdeaState = 0;
+    cdeaPacketsSinceStateChange = -1;
+    cdeaAtChannel = 0;
     
     return true;
     
@@ -116,16 +121,191 @@ IOReturn REACDataStream::processPacket(REACPacketHeader *packet) {
         
         REACDataStream::applyChecksum(packet);
     }
-    else if (false) {
-        lastChecksum = REACDataStream::applyChecksum(packet);
+    else if (0 >= packetsUntilNextCdea) {
+        /// It is more or less impossible to read this code and understand what it does.
+        /// It is because I don't understand it either. It basically attempts to output
+        /// something that looks like the output of a real REAC unit.
+        ///
+        /// To make the implementation of it somewhat sane, I expressed it as a state
+        /// machine.
+        
+#       define setCdeaStateMacro(state) \
+            { \
+                cdeaState = (state); \
+                cdeaPacketsSinceStateChange = -1; \
+            }
+        
+#       define incrementCdeaStateMacro() \
+            setCdeaStateMacro(cdeaState+1);
+        
+#       define incrementCdeaStateMacroAfterNPacketsMacro(n) \
+            if (cdeaPacketsSinceStateChange >= n-1) { \
+                incrementCdeaStateMacro(); \
+            }
+        
+#       define fillPayloadMacro(initialOffset_, number_) \
+            { \
+                const SInt32 distance = 10; /* Distance between numbers */ \
+                const UInt8 number = number_; \
+                const SInt32 initialOffset = initialOffset_; \
+                \
+                memset(payload, 0, PAYLOAD_SIZE); \
+                \
+                if (0 == cdeaPacketsSinceStateChange) { \
+                    cdeaCurrentOffset = initialOffset; \
+                } \
+                \
+                while (cdeaCurrentOffset < PAYLOAD_SIZE) { \
+                    payload[cdeaCurrentOffset] = number; \
+                    cdeaCurrentOffset += distance; \
+                } \
+                cdeaCurrentOffset = cdeaCurrentOffset % PAYLOAD_SIZE; \
+            }
+        
+        static const SInt32 CDEA_PACKET_TYPE_SIZE = 5;
+        static const SInt32 PAYLOAD_SIZE = sizeof(packet->data)-CDEA_PACKET_TYPE_SIZE-1; // -2 for checksum
+        UInt8 *payload = packet->data+CDEA_PACKET_TYPE_SIZE;
+        
+        const UInt8 afterChannelInfoPayload[] = {
+            0x22, 0xc8, 0x31, 0x32, 0x33, 0x34, 0x01, 0x00, 0x00,
+            0x00, 0x02, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00,
+            0x01, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00
+        };
+        
+        const UInt8 afterAfterChannelInfoPayload[][PAYLOAD_SIZE] = {
+            {
+                0x00, 0x00, 0x02, 0x00, 0x19, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
+                0x00, 0x0e, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x19, 0x00
+            },
+            {
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x17, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x02, 0x00, 0x0f, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00
+            },
+            {
+                0x02, 0x00, 0x1a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x18,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x20, 0x00, 0x00, 0x00
+            }
+        };
+        
+        static const UInt8 cdeaPacketTypes[][CDEA_PACKET_TYPE_SIZE] = {
+            { 0x01, 0x00, 0x00, 0x1a, 0x00 },
+            { 0x01, 0x02, 0x00, 0x0e, 0x00 },
+            { 0x01, 0x03, 0x00, 0x19, 0x01 },
+            { 0x01, 0x01, 0x00, 0x18, 0x00 }
+        };
+        UInt32 cdeaPacketType = 0; // Default packet type
+        
+        ++cdeaPacketsSinceStateChange;
+        packetsUntilNextCdea = 8; // Default number of packets until next cdea
+        
+        switch (cdeaState) {
+            case 0: // Filler state
+                fillPayloadMacro(2, 0x03);
+                incrementCdeaStateMacroAfterNPacketsMacro(307);
+                break;
+                
+            case 1: // Packet before channel info state
+                incrementCdeaStateMacro();
+                packetsUntilNextCdea = 8018;
+                
+                cdeaPacketType = 1;
+                memset(payload, 0, PAYLOAD_SIZE);
+                payload[0]  = 0x03;
+                payload[10] = 0x07;
+                payload[11] = 0x65;
+                payload[16] = 0x03;
+                
+                break;
+                
+            case 2: // Channel info state
+                // TODO
+                if (0 == cdeaPacketsSinceStateChange) {
+                    packetsUntilNextCdea = 7947;
+                }
+                else {
+                    incrementCdeaStateMacro();
+                    packetsUntilNextCdea = 27;
+                }
+                
+                cdeaPacketType = 2;
+                
+                break;
+                
+            case 3: // Packet after channel info state
+                incrementCdeaStateMacro();
+                packetsUntilNextCdea = 4;
+                
+                cdeaPacketType = 3;
+                memcpy(payload, afterChannelInfoPayload, sizeof(payload));
+                
+                break;
+                
+            case 4: // Stuff I don't understand after packet after channel info state
+                incrementCdeaStateMacroAfterNPacketsMacro(3);
+                
+                memcpy(payload, afterAfterChannelInfoPayload[cdeaPacketsSinceStateChange], sizeof(payload));
+                
+                break;
+                
+            case 5: // Fillers with 2 state
+                incrementCdeaStateMacroAfterNPacketsMacro(3);
+
+                fillPayloadMacro(4, 0x02);
+
+                break;
+                
+            case 6: // Fillers with 1 state
+                incrementCdeaStateMacroAfterNPacketsMacro(3);
+                
+                fillPayloadMacro(6, 0x01);
+
+                break;
+                
+            case 7: // Fillers with 3 state
+                incrementCdeaStateMacroAfterNPacketsMacro(21);
+                
+                fillPayloadMacro(8, 0x03);
+
+                break;
+                
+            case 8: // Packet before stuff with MAC address state
+                incrementCdeaStateMacro();
+                
+                memset(payload, 0, sizeof(payload));
+                payload[2]  = 0x03;
+                payload[12] = 0x03;
+                payload[24] = 0xc0;
+                payload[25] = 0xa8;
+
+                break;
+                
+            case 9: // Stuff with MAC address state
+                // TODO
+                if (cdeaPacketsSinceStateChange >= 2) {
+                    setCdeaStateMacro(0);
+                }
+                break;
+                
+            default: // Shouldn't happen. Reset.
+                setCdeaStateMacro(0);
+                packetsUntilNextCdea = 0;
+                cdeaAtChannel = 0;
+                break;
+        }
+        
+        memcpy(packet->data, cdeaPacketTypes[cdeaPacketType], sizeof(cdeaPacketTypes[cdeaPacketType]));
+        
+        lastCdeaChecksum = REACDataStream::applyChecksum(packet);
     }
     else {
         memcpy(packet->type, REACDataStream::STREAM_TYPE_IDENTIFIERS[REAC_STREAM_FILLER], sizeof(packet->type));
         for (int i=0; i<31; i+=2) {
             packet->data[i] = 0;
-            packet->data[i+1] = lastChecksum;
+            packet->data[i+1] = lastCdeaChecksum;
         }
     }
+    
+    --packetsUntilNextCdea;
     
     return kIOReturnSuccess;
 }

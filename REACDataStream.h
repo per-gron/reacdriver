@@ -83,9 +83,16 @@ public:
 protected:
     
     com_pereckerdal_driver_REACConnection *connection;
-    UInt64          lastAnnouncePacket; // The counter of the last announce counter packet
-    UInt64          counter;
-    UInt8           lastChecksum;
+    UInt64    lastAnnouncePacket; // The counter of the last announce counter packet
+    UInt64    counter;
+    
+    // Cdea state
+    UInt8     lastCdeaChecksum;
+    SInt32    packetsUntilNextCdea;
+    SInt32    cdeaState;
+    SInt32    cdeaPacketsSinceStateChange;
+    SInt32    cdeaAtChannel;     // Used when writing the cdea channel info packets
+    SInt32    cdeaCurrentOffset; // Used when writing the cdea filler packets
 };
 
 

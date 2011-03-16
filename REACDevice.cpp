@@ -107,7 +107,7 @@ bool REACDevice::createProtocolListeners() {
         
         protocol = REACConnection::withInterface(getWorkLoop(),
                                                  interface,
-                                                 REACConnection::REAC_SPLIT,
+                                                 REACConnection::REAC_MASTER,
                                                  &REACDevice::connectionCallback,
                                                  &REACDevice::samplesCallback,
                                                  &REACDevice::getSamplesCallback,
