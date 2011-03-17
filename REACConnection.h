@@ -129,8 +129,8 @@ protected:
     
     // Connection state variables
     REACMode            mode;
-    UInt8               inChannels;  // Only used in REAC_MASTER mode
-    UInt8               outChannels; // Only used in REAC_MASTER mode
+    UInt8               inChannels;  // The number of input channels (seen as outputs in the computer) Only used in REAC_MASTER mode
+    UInt8               outChannels; // The number of output channels (seen as inputs in the computer) Only used in REAC_MASTER mode
     bool                started;
     bool                connected;
     REACDataStream     *dataStream;

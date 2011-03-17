@@ -87,7 +87,7 @@ protected:
     UInt64    counter;
     
     // Cdea state
-    UInt8     lastCdeaChecksum;
+    UInt8     lastCdeaTwoBytes[2];
     SInt32    packetsUntilNextCdea;
     SInt32    cdeaState;
     SInt32    cdeaPacketsSinceStateChange;

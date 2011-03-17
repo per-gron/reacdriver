@@ -31,7 +31,7 @@ bool REACDataStream::initConnection(REACConnection* conn) {
     connection = conn;
     lastAnnouncePacket = 0;
     counter = 0;
-    lastCdeaChecksum = 0;
+    lastCdeaTwoBytes[0] = lastCdeaTwoBytes[1] = 0;
     
     packetsUntilNextCdea = 0;
     cdeaState = 0;
@@ -141,6 +141,11 @@ IOReturn REACDataStream::processPacket(REACPacketHeader *packet) {
 #       define incrementCdeaStateMacroAfterNPacketsMacro(n) \
             if (cdeaPacketsSinceStateChange >= n-1) { \
                 incrementCdeaStateMacro(); \
+}
+        
+#       define resetCdeaStateMacroAfterNPacketsMacro(n) \
+            if (cdeaPacketsSinceStateChange >= n-1) { \
+                setCdeaStateMacro(0); \
             }
         
 #       define fillPayloadMacro(initialOffset_, number_) \
@@ -187,6 +192,12 @@ IOReturn REACDataStream::processPacket(REACPacketHeader *packet) {
             }
         };
         
+        const UInt8 stuffWithMACAddress[][18] = {
+            { 0xc0, 0xa8, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff },
+            { 0x17, 0x00, 0x00, 0x00, 0x1e, 0x4d, 0x00, 0x00, 0x53, 0x59, 0x53, 0x50, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00 },
+            { 0x58, 0x56, 0x53, 0x43, 0x45, 0x4e, 0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }
+        };
+        
         static const UInt8 cdeaPacketTypes[][CDEA_PACKET_TYPE_SIZE] = {
             { 0x01, 0x00, 0x00, 0x1a, 0x00 },
             { 0x01, 0x02, 0x00, 0x0e, 0x00 },
@@ -205,9 +216,6 @@ IOReturn REACDataStream::processPacket(REACPacketHeader *packet) {
                 break;
                 
             case 1: // Packet before channel info state
-                incrementCdeaStateMacro();
-                packetsUntilNextCdea = 8018;
-                
                 cdeaPacketType = 1;
                 memset(payload, 0, PAYLOAD_SIZE);
                 payload[0]  = 0x03;
@@ -215,10 +223,44 @@ IOReturn REACDataStream::processPacket(REACPacketHeader *packet) {
                 payload[11] = 0x65;
                 payload[16] = 0x03;
                 
+                incrementCdeaStateMacro();
+                packetsUntilNextCdea = 8018;
+                
                 break;
                 
             case 2: // Channel info state
-                // TODO
+                cdeaPacketType = 2;
+                for (int i=0; i<8; i++) {
+                    // The first byte of the channel data is the channel number
+                    if (cdeaAtChannel == 48) {
+                        payload[i*3+0] = 0xfe;
+                    }
+                    else {
+                        payload[i*3+0] = cdeaAtChannel;
+                    }
+                    
+                    // The second byte of the channel data seems to contain channel type flags
+                    // (input/output/none/terminator type + phantom)
+                    if (cdeaAtChannel == 48) {
+                        payload[i*3+1] = 0x01;
+                    }
+                    else if (cdeaAtChannel < connection->getInChannels()) {
+                        payload[i*3+1] = 0x20;
+                    }
+                    else if (cdeaAtChannel < connection->getInChannels()+connection->getOutChannels()) {
+                        payload[i*3+1] = 0x10;
+                    }
+                    else {
+                        payload[i*3+1] = 0x30;
+                    }
+                    
+                    // The third byte of the channel data is gain
+                    payload[i*3+2] = 0x00;
+                    
+                    cdeaAtChannel = (cdeaAtChannel+1)%49;
+                }
+                memset(payload+PAYLOAD_SIZE-2, 0, 2);
+                
                 if (0 == cdeaPacketsSinceStateChange) {
                     packetsUntilNextCdea = 7947;
                 }
@@ -227,63 +269,70 @@ IOReturn REACDataStream::processPacket(REACPacketHeader *packet) {
                     packetsUntilNextCdea = 27;
                 }
                 
-                cdeaPacketType = 2;
-                
                 break;
                 
             case 3: // Packet after channel info state
+                cdeaPacketType = 3;
+                memcpy(payload, afterChannelInfoPayload, PAYLOAD_SIZE);
+
                 incrementCdeaStateMacro();
                 packetsUntilNextCdea = 4;
-                
-                cdeaPacketType = 3;
-                memcpy(payload, afterChannelInfoPayload, sizeof(payload));
                 
                 break;
                 
             case 4: // Stuff I don't understand after packet after channel info state
+                memcpy(payload, afterAfterChannelInfoPayload[cdeaPacketsSinceStateChange], PAYLOAD_SIZE);
                 incrementCdeaStateMacroAfterNPacketsMacro(3);
-                
-                memcpy(payload, afterAfterChannelInfoPayload[cdeaPacketsSinceStateChange], sizeof(payload));
-                
                 break;
                 
             case 5: // Fillers with 2 state
-                incrementCdeaStateMacroAfterNPacketsMacro(3);
-
                 fillPayloadMacro(4, 0x02);
-
+                incrementCdeaStateMacroAfterNPacketsMacro(3);
                 break;
                 
             case 6: // Fillers with 1 state
-                incrementCdeaStateMacroAfterNPacketsMacro(3);
-                
                 fillPayloadMacro(6, 0x01);
-
+                incrementCdeaStateMacroAfterNPacketsMacro(3);
                 break;
                 
             case 7: // Fillers with 3 state
-                incrementCdeaStateMacroAfterNPacketsMacro(21);
-                
                 fillPayloadMacro(8, 0x03);
-
+                incrementCdeaStateMacroAfterNPacketsMacro(21);
                 break;
                 
             case 8: // Packet before stuff with MAC address state
-                incrementCdeaStateMacro();
-                
-                memset(payload, 0, sizeof(payload));
+                memset(payload, 0, PAYLOAD_SIZE);
                 payload[2]  = 0x03;
                 payload[12] = 0x03;
                 payload[24] = 0xc0;
                 payload[25] = 0xa8;
 
+                incrementCdeaStateMacro();
+                
                 break;
                 
             case 9: // Stuff with MAC address state
-                // TODO
-                if (cdeaPacketsSinceStateChange >= 2) {
-                    setCdeaStateMacro(0);
+                memcpy(payload+PAYLOAD_SIZE-sizeof(stuffWithMACAddress[0]), 
+                       stuffWithMACAddress[cdeaPacketsSinceStateChange],
+                       sizeof(stuffWithMACAddress[0]));
+                
+                
+                if (0 == cdeaPacketsSinceStateChange) {
+                    payload[0] = payload[1] = 0x01;
+                    connection->getInterfaceAddr(ETHER_ADDR_LEN, payload+2);
+                    connection->getInterfaceAddr(ETHER_ADDR_LEN, payload+12);
                 }
+                else if (1 == cdeaPacketsSinceStateChange) {
+                    payload[0] = payload[1] = 0xff;
+                    memset(payload+2, 0, ETHER_ADDR_LEN);
+                }
+                else { // 3 == cdeaPacketsSinceStateChange
+                    payload[0] = payload[1] = 0x00;
+                    memset(payload+2, 0, ETHER_ADDR_LEN);
+                }
+                
+                resetCdeaStateMacroAfterNPacketsMacro(3);
+                
                 break;
                 
             default: // Shouldn't happen. Reset.
@@ -293,15 +342,17 @@ IOReturn REACDataStream::processPacket(REACPacketHeader *packet) {
                 break;
         }
         
+        memcpy(packet->type, REACDataStream::STREAM_TYPE_IDENTIFIERS[REAC_STREAM_CONTROL], sizeof(packet->type));
         memcpy(packet->data, cdeaPacketTypes[cdeaPacketType], sizeof(cdeaPacketTypes[cdeaPacketType]));
         
-        lastCdeaChecksum = REACDataStream::applyChecksum(packet);
+        lastCdeaTwoBytes[0] = packet->data[sizeof(packet->data)-2];
+        lastCdeaTwoBytes[1] = REACDataStream::applyChecksum(packet);
     }
     else {
         memcpy(packet->type, REACDataStream::STREAM_TYPE_IDENTIFIERS[REAC_STREAM_FILLER], sizeof(packet->type));
         for (int i=0; i<31; i+=2) {
-            packet->data[i] = 0;
-            packet->data[i+1] = lastCdeaChecksum;
+            packet->data[i+0] = lastCdeaTwoBytes[0];
+            packet->data[i+1] = lastCdeaTwoBytes[1];
         }
     }
     
