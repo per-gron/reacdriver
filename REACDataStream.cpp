@@ -61,6 +61,7 @@ bool REACDataStream::initConnection(REACConnection* conn) {
     connection = conn;
     lastAnnouncePacket = 0;
     counter = 0;
+    recievedPacketCounter = 0;
     
     splitHandshakeState = HANDSHAKE_NOT_INITIATED;
     
@@ -107,6 +108,8 @@ void REACDataStream::free() {
 }
 
 void REACDataStream::gotPacket(const REACPacketHeader *packet, const EthernetHeader *header) {
+    recievedPacketCounter++;
+    
     if (0 == memcmp(packet->type,
                     STREAM_TYPE_IDENTIFIERS[REAC_STREAM_FILLER],
                     sizeof(STREAM_TYPE_IDENTIFIERS[0]))) {
@@ -144,14 +147,14 @@ void REACDataStream::gotPacket(const REACPacketHeader *packet, const EthernetHea
                     memcpy(splitMasterDevice.addr, map->address, sizeof(splitMasterDevice.addr));
                     splitMasterDevice.in_channels = map->inChannels;
                     splitMasterDevice.out_channels = map->outChannels;
-                    setSplitHandshakeState(HANDSHAKE_GOT_MASTER_ANNOUNCE);
+                    splitHandshakeState = HANDSHAKE_GOT_MASTER_ANNOUNCE;
                 }
             }
             else if (HANDSHAKE_SENT_FIRST_ANNOUNCE == splitHandshakeState) {
                 if (0x0a == map->unknown1[6]) {
                     if (0 == connection->interfaceAddrCmp(sizeof(map->address), map->address)) {
                         splitIdentifier = map->outChannels;
-                        setSplitHandshakeState(HANDSHAKE_GOT_SECOND_MASTER_ANNOUNCE);
+                        splitHandshakeState = HANDSHAKE_GOT_SECOND_MASTER_ANNOUNCE;
                     }
                 }
             }
@@ -160,8 +163,10 @@ void REACDataStream::gotPacket(const REACPacketHeader *packet, const EthernetHea
 }
 
 IOReturn REACDataStream::processPacket(REACPacketHeader *packet) {
+    
 #   define setPacketTypeMacro(packetType) \
         memcpy(packet->type, STREAM_TYPE_IDENTIFIERS[packetType], sizeof(packet->type));
+    
     packet->setCounter(counter++);
     
     if (1 == cfeaGotSplitAnnounceState) {
@@ -463,12 +468,11 @@ bool REACDataStream::prepareSplitAnnounce(REACPacketHeader *packet) {
     memcpy(packet->type, STREAM_TYPE_IDENTIFIERS[REACDataStream::REAC_STREAM_SPLIT_ANNOUNCE], sizeof(packet->type));
     
     if (HANDSHAKE_GOT_MASTER_ANNOUNCE == splitHandshakeState) {
-        // TODO Reset the handshake state if it is not HANDSHAKE_CONNECTED and it has gone a second or so
         memset(packet->data, 0, sizeof(packet->data));
         memcpy(packet->data, REAC_SPLIT_ANNOUNCE_FIRST, sizeof(REAC_SPLIT_ANNOUNCE_FIRST));
         connection->getInterfaceAddr(ETHER_ADDR_LEN, packet->data+sizeof(REAC_SPLIT_ANNOUNCE_FIRST));
         ret = true;
-        setSplitHandshakeState(HANDSHAKE_SENT_FIRST_ANNOUNCE);
+        splitHandshakeState = HANDSHAKE_SENT_FIRST_ANNOUNCE;
     }
     else if (HANDSHAKE_GOT_SECOND_MASTER_ANNOUNCE == splitHandshakeState) {
         memset(packet->data, 0, sizeof(packet->data));
@@ -484,7 +488,7 @@ bool REACDataStream::prepareSplitAnnounce(REACPacketHeader *packet) {
         
         connection->getInterfaceAddr(ETHER_ADDR_LEN, packet->data+sizeof(REAC_SPLIT_ANNOUNCE_FIRST));
         ret = true;
-        setSplitHandshakeState(HANDSHAKE_CONNECTED);
+        splitHandshakeState = HANDSHAKE_CONNECTED;
     }
     else if (HANDSHAKE_CONNECTED == splitHandshakeState) {
         memset(packet->data, 0, sizeof(packet->data));
@@ -501,7 +505,16 @@ bool REACDataStream::prepareSplitAnnounce(REACPacketHeader *packet) {
         ret = true;
     }
     
+    if (HANDSHAKE_NOT_INITIATED != splitHandshakeState && recievedPacketCounter == counterAtLastSplitAnnounce) {
+        IOLog("REACDataStream::prepareSplitAnnounce(): Disconnect.\n"); // TODO Don't just announce in the log
+        splitHandshakeState = HANDSHAKE_NOT_INITIATED;
+        ret = false;
+    }
+    
     REACDataStream::applyChecksum(packet);
+    
+    counterAtLastSplitAnnounce = recievedPacketCounter;
+    
     return ret;
 }
 
@@ -520,11 +533,6 @@ UInt8 REACDataStream::applyChecksum(REACPacketHeader *packet) {
     sum = (256 - (int)sum);
     packet->data[31] = sum;
     return sum;
-}
-
-void REACDataStream::setSplitHandshakeState(SplitHandshakeState state) {
-    splitHandshakeState = state;
-    IOLog("New handshake state: %d\n", state); // TODO Debug
 }
 
 bool REACDataStream::updateLastHeardFromSplitUnit(const EthernetHeader* header, UInt32 addrLen, const UInt8 *addr) {

@@ -119,7 +119,16 @@ protected:
     
     com_pereckerdal_driver_REACConnection *connection;
     UInt64    lastAnnouncePacket; // The counter of the last announce counter packet
+    UInt64    recievedPacketCounter;
     UInt64    counter;
+    
+    // Cdea state
+    UInt8     lastCdeaTwoBytes[2];
+    SInt32    packetsUntilNextCdea;
+    SInt32    cdeaState;
+    SInt32    cdeaPacketsSinceStateChange;
+    SInt32    cdeaAtChannel;     // Used when writing the cdea channel info packets
+    SInt32    cdeaCurrentOffset; // Used when writing the cdea filler packets
     
     // REAC_SPLIT state (this is only used when in REAC_SPLIT mode)
     enum SplitHandshakeState {
@@ -130,17 +139,9 @@ protected:
         HANDSHAKE_CONNECTED
     };
     SplitHandshakeState splitHandshakeState;
-    inline void setSplitHandshakeState(SplitHandshakeState state);
-    REACDeviceInfo splitMasterDevice;
-    UInt8          splitIdentifier;
-    
-    // Cdea state
-    UInt8     lastCdeaTwoBytes[2];
-    SInt32    packetsUntilNextCdea;
-    SInt32    cdeaState;
-    SInt32    cdeaPacketsSinceStateChange;
-    SInt32    cdeaAtChannel;     // Used when writing the cdea channel info packets
-    SInt32    cdeaCurrentOffset; // Used when writing the cdea filler packets
+    REACDeviceInfo      splitMasterDevice;
+    UInt8               splitIdentifier;
+    UInt64              counterAtLastSplitAnnounce;
     
     // REAC_MASTER state
     OSArray  *splitUnits;
