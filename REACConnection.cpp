@@ -460,7 +460,7 @@ Done:
     return result;
 }
 
-void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, void*, void*, void*) {
+void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, void *eth_header_ptr, void*, void*) {
     REACConnection *proto = OSDynamicCast(REACConnection, target);
     if (NULL == proto) {
         // This should never happen
@@ -468,6 +468,7 @@ void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, voi
         return;
     }
     
+    const EthernetHeader *ethernetHeader = (const EthernetHeader *)eth_header_ptr;
     const int samplesSize = REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*proto->deviceInfo->in_channels;
     
     mbuf_t *data = (mbuf_t *)data_mbuf;
@@ -508,7 +509,7 @@ void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, voi
     }
     
     // Process packet header
-    proto->dataStream->gotPacket(&packetHeader);
+    proto->dataStream->gotPacket(&packetHeader, ethernetHeader);
     
     // Check packet length
     if (sizeof(REACPacketHeader)+samplesSize+sizeof(UInt16) == len) {
@@ -558,14 +559,14 @@ errno_t REACConnection::filterInputFunc(void *cookie,
                                         mbuf_t *data,
                                         char **frame_ptr) {
     REACConnection *proto = (REACConnection *)cookie;
-
-    char *header = *frame_ptr;
-    if (!(REACConstants::PROTOCOL[0] == ((UInt8*)header)[12] && REACConstants::PROTOCOL[1] == ((UInt8*)header)[13])) {
+    
+    EthernetHeader *header = (EthernetHeader *)*frame_ptr;
+    if (0 != memcmp(header->type, REACConstants::PROTOCOL, sizeof(header->type))) {
         // This is not a REAC packet. Ignore.
         return 0; // Continue normal processing of the package.
     }
         
-    proto->filterCommandGate->runCommand(data);
+    proto->filterCommandGate->runCommand(data, header);
     
     return EINPROGRESS; // Skip the processing of the package.
 }

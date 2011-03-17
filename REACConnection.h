@@ -28,7 +28,7 @@
 struct EthernetHeader {
 	UInt8 dhost[ETHER_ADDR_LEN]; /* Destination host address */
 	UInt8 shost[ETHER_ADDR_LEN]; /* Source host address */
-	UInt16 type; /* IP? ARP? RARP? etc */
+	UInt8 type[2]; /* IP? ARP? RARP? etc */
 };
 
 struct REACDeviceInfo {
@@ -144,7 +144,7 @@ protected:
     IOReturn pushSamples(UInt32 bufSize, UInt8 *sampleBuffer);
     IOReturn pushSplitAnnouncementPacket();
     
-    static void filterCommandGateMsg(OSObject *target, void *data_mbuf, void*, void*, void*);
+    static void filterCommandGateMsg(OSObject *target, void *data_mbuf, void *eth_header_ptr, void*, void*);
     
     static errno_t filterInputFunc(void *cookie,
                                    ifnet_t interface, 

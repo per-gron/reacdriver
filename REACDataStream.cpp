@@ -14,6 +14,33 @@
 #include "REACConnection.h"
 
 
+
+OSDefineMetaClassAndStructors(REACSplitUnit, OSObject)
+
+bool REACSplitUnit::initAddress(UInt64 lastHeardFrom_, UInt8 identifier_, UInt32 addrLen, const UInt8 *addr) {
+    lastHeardFrom = lastHeardFrom_;
+    identifier = identifier_;
+    
+    if (sizeof(address) != addrLen) {
+        return false;
+    }
+    memcpy(address, addr, addrLen);
+    
+    return true;
+}
+
+REACSplitUnit *REACSplitUnit::withAddress(UInt64 lastHeardFrom, UInt8 identifier, UInt32 addrLen, const UInt8 *addr) {
+    REACSplitUnit *s = new REACSplitUnit;
+    if (NULL == s) return NULL;
+    bool result = s->initAddress(lastHeardFrom, identifier, addrLen, addr);
+    if (!result) {
+        s->release();
+        return NULL;
+    }
+    return s;
+}
+
+
 const UInt8 REACDataStream::REAC_SPLIT_ANNOUNCE_BEFORE[] = {
     0x01, 0x00, 0x7f, 0x00, 0x01, 0x03, 0x08, 0x43, 0x05
 };
@@ -31,19 +58,22 @@ const UInt8 REACDataStream::STREAM_TYPE_IDENTIFIERS[][2] = {
 OSDefineMetaClassAndStructors(REACDataStream, OSObject)
 
 bool REACDataStream::initConnection(REACConnection* conn) {
-    if (false) goto Fail; // Supress the unused label warning
-    
     connection = conn;
     lastAnnouncePacket = 0;
     counter = 0;
     lastCdeaTwoBytes[0] = lastCdeaTwoBytes[1] = 0;
     
-    cfeaGotSplitAnnounce = 0;
+    cfeaGotSplitAnnounceState = 0;
     
     packetsUntilNextCdea = 0;
     cdeaState = 0;
     cdeaPacketsSinceStateChange = -1;
     cdeaAtChannel = 0;
+    
+    splitUnits = OSArray::withCapacity(10);
+    if (NULL == splitUnits) {
+        goto Fail;
+    }
     
     return true;
     
@@ -64,6 +94,10 @@ REACDataStream *REACDataStream::withConnection(REACConnection *conn) {
 }
 
 void REACDataStream::deinit() {
+    if (NULL != splitUnits) {
+        splitUnits->release();
+        splitUnits = NULL;
+    }
 }
 
 void REACDataStream::free() {
@@ -71,16 +105,26 @@ void REACDataStream::free() {
     super::free();
 }
 
-void REACDataStream::gotPacket(const REACPacketHeader *packet) {
-    // TODO Check checksum
+void REACDataStream::gotPacket(const REACPacketHeader *packet, const EthernetHeader *header) {
+    if (!REACDataStream::checkChecksum(packet)) {
+        IOLog("REACDataStream::gotPacket(): Got packet with invalid checksum.\n");
+    }
     
-    IOLog("Got packet\n");
-    if (0 == memcmp(packet->type,
-                    STREAM_TYPE_IDENTIFIERS[REAC_STREAM_SPLIT_ANNOUNCE],
-                    sizeof(STREAM_TYPE_IDENTIFIERS[0]))) {
-        if (0 == cfeaGotSplitAnnounce) {
-            cfeaGotSplitAnnounce = 1;
-            memcpy(cfeaSplitAnnounceAddr, packet->data+sizeof(REAC_SPLIT_ANNOUNCE_BEFORE), sizeof(cfeaSplitAnnounceAddr));
+    /*IOLog("Got packet: "); // TODO Debug
+    for (UInt32 i=0; i<sizeof(REACPacketHeader); i++) {
+        IOLog("%02x", ((UInt8*)packet)[i]);
+    }
+    IOLog("\n");*/
+    
+    if (REACConnection::REAC_MASTER == connection->getMode()) {
+        if (0 == memcmp(packet->type,
+                        STREAM_TYPE_IDENTIFIERS[REAC_STREAM_SPLIT_ANNOUNCE],
+                        sizeof(STREAM_TYPE_IDENTIFIERS[0]))) {
+            bool found = REACDataStream::updateLastHeardFromSplitUnit(header, sizeof(header->shost), header->shost);
+            if (!found && 0 == cfeaGotSplitAnnounceState) {
+                cfeaGotSplitAnnounceState = 1;
+                memcpy(cfeaSplitAnnounceAddr, packet->data+sizeof(REAC_SPLIT_ANNOUNCE_BEFORE), sizeof(cfeaSplitAnnounceAddr));
+            }
         }
     }
 }
@@ -90,46 +134,44 @@ IOReturn REACDataStream::processPacket(REACPacketHeader *packet) {
         memcpy(packet->type, STREAM_TYPE_IDENTIFIERS[packetType], sizeof(packet->type));
     packet->setCounter(counter++);
     
-    if (1 == cfeaGotSplitAnnounce) {
-        IOLog("Responding to split announce\n");
-        cfeaGotSplitAnnounce = 2;
-        
+    if (1 == cfeaGotSplitAnnounceState) {
         static const UInt8 splitAnnounceResponse[] = {
             0xff, 0xff, 0x01, 0x00, 0x01, 0x03, 0x0a, 0x02, 0x02
         };
-        memcpy(packet->data, splitAnnounceResponse, sizeof(splitAnnounceResponse));
-        memcpy(packet->data+sizeof(splitAnnounceResponse), cfeaSplitAnnounceAddr, sizeof(cfeaSplitAnnounceAddr));
         
-        packet->data[sizeof(splitAnnounceResponse)+sizeof(cfeaSplitAnnounceAddr)] = 0x00;
-        packet->data[sizeof(splitAnnounceResponse)+sizeof(cfeaSplitAnnounceAddr)+1] = 0x60;
+        cfeaGotSplitAnnounceState = 2;
+        
+        SplitAnnounceResponsePacket *sarp = (SplitAnnounceResponsePacket *)packet->data;
+        memcpy(sarp->unknown1, splitAnnounceResponse, sizeof(sarp->unknown1));
+        memcpy(sarp->address,  cfeaSplitAnnounceAddr, sizeof(sarp->address));
+        sarp->unknown2 = 0x00;
+        sarp->identifierAssignment = 0x60; // 0x04 and up seems to be fine
         
         UInt8 *zeroPtr = packet->data+sizeof(splitAnnounceResponse)+sizeof(cfeaSplitAnnounceAddr)+2;
         memset(zeroPtr, 0, packet->data+sizeof(packet->data)-zeroPtr);
         
         setPacketTypeMacro(REAC_STREAM_MASTER_ANNOUNCE);
         REACDataStream::applyChecksum(packet);
+        
+        splitUnitConnected(sarp->identifierAssignment, sizeof(cfeaSplitAnnounceAddr), cfeaSplitAnnounceAddr);
     }
     else if (counter-lastAnnouncePacket >= REAC_PACKETS_PER_SECOND) {
-        lastAnnouncePacket = counter;
-        
-        setPacketTypeMacro(REAC_STREAM_MASTER_ANNOUNCE);
-        
-        AnnouncePacket *ap = (AnnouncePacket *)packet->data;
-        
         static const UInt8 masterAnnounce[] = {
             0xff, 0xff, 0x01, 0x00, 0x01, 0x03, 0x0d, 0x01, 0x04
         };
+        
+        lastAnnouncePacket = counter;
+        
+        MasterAnnouncePacket *ap = (MasterAnnouncePacket *)packet->data;
         memcpy(ap->unknown1, masterAnnounce, sizeof(ap->unknown1));
-        
         connection->getInterfaceAddr(sizeof(ap->address), ap->address);
-        
         ap->inChannels = connection->getInChannels();
         ap->outChannels = connection->getOutChannels();
                                      
         ap->unknown2[0] = 0x01;
         // This byte has something to do with splits
-        if (2 == cfeaGotSplitAnnounce) {
-            cfeaGotSplitAnnounce = 3;
+        if (2 == cfeaGotSplitAnnounceState) {
+            cfeaGotSplitAnnounceState = 0;
             ap->unknown2[1] = 0x01; // It does this. It doesn't seem to be necessary though.
         }
         else {
@@ -138,9 +180,12 @@ IOReturn REACDataStream::processPacket(REACPacketHeader *packet) {
         ap->unknown2[2] = 0x01;
         ap->unknown2[3] = 0x00;
         
-        memset(packet->data+sizeof(AnnouncePacket), 0, sizeof(packet->data)-sizeof(AnnouncePacket));
+        memset(packet->data+sizeof(MasterAnnouncePacket), 0, sizeof(packet->data)-sizeof(MasterAnnouncePacket));
         
+        setPacketTypeMacro(REAC_STREAM_MASTER_ANNOUNCE);
         REACDataStream::applyChecksum(packet);
+        
+        disconnectObsoleteSplitUnits();
     }
     else if (0 >= packetsUntilNextCdea) {
         /// It is more or less impossible to read this code and understand what it does.
@@ -393,15 +438,10 @@ void REACDataStream::prepareSplitAnnounce(REACPacketHeader *packet) {
 
 bool REACDataStream::checkChecksum(const REACPacketHeader *packet) {
     UInt8 expected_checksum = 0;
-    for (int i=0; i<31; i++) {
-        if (i%2)
-            expected_checksum += (UInt8) (packet->data[i/2] >> 8);
-        else
-            expected_checksum += (UInt8) packet->data[i/2] & 255;
+    for (UInt32 i=0; i<sizeof(packet->data); i++) {
+        expected_checksum += packet->data[i];
     }
-    expected_checksum = (UInt8) (256 - (int)expected_checksum);
-    
-    return expected_checksum == packet->data[15] >> 8;
+    return 0 == expected_checksum;
 }
 
 UInt8 REACDataStream::applyChecksum(REACPacketHeader *packet) {
@@ -411,4 +451,67 @@ UInt8 REACDataStream::applyChecksum(REACPacketHeader *packet) {
     sum = (256 - (int)sum);
     packet->data[31] = sum;
     return sum;
+}
+
+bool REACDataStream::updateLastHeardFromSplitUnit(const EthernetHeader* header, UInt32 addrLen, const UInt8 *addr) {
+    const UInt32   arraySize = splitUnits->getCount();
+    bool           found = false;
+    
+    if (addrLen != sizeof(header->shost)) {
+        return false;
+    }
+    
+    for (UInt32 i=0; i<arraySize; i++) {
+        REACSplitUnit *splitUnit = (REACSplitUnit *)splitUnits->getObject(i);
+        if (0 == memcmp(addr, splitUnit->address, addrLen)) {
+            found = true;
+            splitUnit->lastHeardFrom = counter;
+            break;
+        }
+    }
+    
+    return found;
+}
+
+IOReturn REACDataStream::splitUnitConnected(UInt8 identifier, UInt32 addrLen, const UInt8 *addr) {
+    IOReturn ret = kIOReturnError;
+    REACSplitUnit *rsu = REACSplitUnit::withAddress(counter, identifier, addrLen, addr);
+    
+    if (NULL == rsu) {
+        goto Done;
+    }
+    if (!splitUnits->setObject(rsu)) {
+        goto Done;
+    }
+    
+    IOLog("REACDataStream::splitUnitConnected(): Split connect: ");
+    for (UInt32 i=0; i<addrLen; i++) IOLog("%02x", addr[i]);
+    IOLog("\n");
+    
+    ret = kIOReturnSuccess;
+
+Done:
+    if (NULL != rsu) {
+        rsu->release();
+    }
+    return ret;
+}
+
+void REACDataStream::disconnectObsoleteSplitUnits() {
+    UInt32 arraySize = splitUnits->getCount();
+
+    for (UInt32 i=0; i<arraySize; i++) {
+        REACSplitUnit *splitUnit = (REACSplitUnit *)splitUnits->getObject(i);
+        if (counter-splitUnit->lastHeardFrom >= REAC_PACKETS_PER_SECOND) {
+            
+            
+            IOLog("REACDataStream::disconnectObsoleteSplitUnits(): Split disconnect: ");
+            for (UInt32 j=0; j<sizeof(splitUnit->address); j++) IOLog("%02x", splitUnit->address[j]);
+            IOLog("\n");
+            
+            splitUnits->removeObject(i);
+            --i;
+            --arraySize;
+        }
+    }
 }
