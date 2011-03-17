@@ -62,7 +62,7 @@ bool REACDataStream::initConnection(REACConnection* conn) {
     lastAnnouncePacket = 0;
     counter = 0;
     
-    cfeaHandshakeState = HANDSHAKE_NOT_INITIATED;
+    splitHandshakeState = HANDSHAKE_NOT_INITIATED;
     
     lastCdeaTwoBytes[0] = lastCdeaTwoBytes[1] = 0;
     packetsUntilNextCdea = 0;
@@ -139,24 +139,21 @@ void REACDataStream::gotPacket(const REACPacketHeader *packet, const EthernetHea
                     sizeof(STREAM_TYPE_IDENTIFIERS[0]))) {
         if (REACConnection::REAC_SPLIT) {
             MasterAnnouncePacket *map = (MasterAnnouncePacket *)packet->data;
-            if (HANDSHAKE_NOT_INITIATED == cfeaHandshakeState) {
+            if (HANDSHAKE_NOT_INITIATED == splitHandshakeState) {
                 if (0x0d == map->unknown1[6]) {
-                    memcpy(cfeaHandshakeDevice.addr, map->address, sizeof(cfeaHandshakeDevice.addr));
-                    cfeaHandshakeDevice.in_channels = map->inChannels;
-                    cfeaHandshakeDevice.out_channels = map->outChannels;
-                    cfeaHandshakeState = HANDSHAKE_GOT_MASTER_ANNOUNCE;
+                    memcpy(splitMasterDevice.addr, map->address, sizeof(splitMasterDevice.addr));
+                    splitMasterDevice.in_channels = map->inChannels;
+                    splitMasterDevice.out_channels = map->outChannels;
+                    setSplitHandshakeState(HANDSHAKE_GOT_MASTER_ANNOUNCE);
                 }
             }
-            else if (HANDSHAKE_SENT_FIRST_ANNOUNCE == cfeaHandshakeState) {
+            else if (HANDSHAKE_SENT_FIRST_ANNOUNCE == splitHandshakeState) {
                 if (0x0a == map->unknown1[6]) {
                     if (0 == connection->interfaceAddrCmp(sizeof(map->address), map->address)) {
-                        cfeaSplitIdentifier = map->outChannels;
-                        cfeaHandshakeState = HANDSHAKE_GOT_SECOND_MASTER_ANNOUNCE;
+                        splitIdentifier = map->outChannels;
+                        setSplitHandshakeState(HANDSHAKE_GOT_SECOND_MASTER_ANNOUNCE);
                     }
                 }
-            }
-            else {
-                cfeaHandshakeState = HANDSHAKE_NOT_INITIATED;
             }
         }
     }
@@ -465,41 +462,41 @@ bool REACDataStream::prepareSplitAnnounce(REACPacketHeader *packet) {
     
     memcpy(packet->type, STREAM_TYPE_IDENTIFIERS[REACDataStream::REAC_STREAM_SPLIT_ANNOUNCE], sizeof(packet->type));
     
-    if (HANDSHAKE_GOT_MASTER_ANNOUNCE == cfeaHandshakeState) {
+    if (HANDSHAKE_GOT_MASTER_ANNOUNCE == splitHandshakeState) {
         // TODO Reset the handshake state if it is not HANDSHAKE_CONNECTED and it has gone a second or so
         memset(packet->data, 0, sizeof(packet->data));
         memcpy(packet->data, REAC_SPLIT_ANNOUNCE_FIRST, sizeof(REAC_SPLIT_ANNOUNCE_FIRST));
         connection->getInterfaceAddr(ETHER_ADDR_LEN, packet->data+sizeof(REAC_SPLIT_ANNOUNCE_FIRST));
         ret = true;
-        cfeaHandshakeState = HANDSHAKE_SENT_FIRST_ANNOUNCE;
+        setSplitHandshakeState(HANDSHAKE_SENT_FIRST_ANNOUNCE);
     }
-    else if (HANDSHAKE_GOT_SECOND_MASTER_ANNOUNCE == cfeaHandshakeState) {
+    else if (HANDSHAKE_GOT_SECOND_MASTER_ANNOUNCE == splitHandshakeState) {
         memset(packet->data, 0, sizeof(packet->data));
         packet->data[0] = 0x01;
         packet->data[1] = 0x00;
-        packet->data[2] = cfeaSplitIdentifier;
+        packet->data[2] = splitIdentifier;
         packet->data[3] = 0x00;
         packet->data[4] = 0x01;
         packet->data[5] = 0x03;
         packet->data[6] = 0x08;
         packet->data[7] = 0x42;
-        packet->data[7] = 0x05;
+        packet->data[8] = 0x05;
         
         connection->getInterfaceAddr(ETHER_ADDR_LEN, packet->data+sizeof(REAC_SPLIT_ANNOUNCE_FIRST));
         ret = true;
-        cfeaHandshakeState = HANDSHAKE_CONNECTED;
+        setSplitHandshakeState(HANDSHAKE_CONNECTED);
     }
-    else if (HANDSHAKE_CONNECTED == cfeaHandshakeState) {
+    else if (HANDSHAKE_CONNECTED == splitHandshakeState) {
         memset(packet->data, 0, sizeof(packet->data));
         packet->data[0] = 0x01;
         packet->data[1] = 0x00;
-        packet->data[2] = cfeaSplitIdentifier;
+        packet->data[2] = splitIdentifier;
         packet->data[3] = 0x00;
         packet->data[4] = 0x01;
         packet->data[5] = 0x03;
         packet->data[6] = 0x02;
         packet->data[7] = 0x41;
-        packet->data[7] = 0x05;
+        packet->data[8] = 0x05;
         
         ret = true;
     }
@@ -523,6 +520,11 @@ UInt8 REACDataStream::applyChecksum(REACPacketHeader *packet) {
     sum = (256 - (int)sum);
     packet->data[31] = sum;
     return sum;
+}
+
+void REACDataStream::setSplitHandshakeState(SplitHandshakeState state) {
+    splitHandshakeState = state;
+    IOLog("New handshake state: %d\n", state); // TODO Debug
 }
 
 bool REACDataStream::updateLastHeardFromSplitUnit(const EthernetHeader* header, UInt32 addrLen, const UInt8 *addr) {

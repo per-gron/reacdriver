@@ -121,16 +121,18 @@ protected:
     UInt64    lastAnnouncePacket; // The counter of the last announce counter packet
     UInt64    counter;
     
-    // REAC_SPLIT state
-    enum {
+    // REAC_SPLIT state (this is only used when in REAC_SPLIT mode)
+    enum SplitHandshakeState {
         HANDSHAKE_NOT_INITIATED,
         HANDSHAKE_GOT_MASTER_ANNOUNCE,
         HANDSHAKE_SENT_FIRST_ANNOUNCE,
         HANDSHAKE_GOT_SECOND_MASTER_ANNOUNCE,
         HANDSHAKE_CONNECTED
-    }              cfeaHandshakeState;
-    REACDeviceInfo cfeaHandshakeDevice;
-    UInt8          cfeaSplitIdentifier;
+    };
+    SplitHandshakeState splitHandshakeState;
+    inline void setSplitHandshakeState(SplitHandshakeState state);
+    REACDeviceInfo splitMasterDevice;
+    UInt8          splitIdentifier;
     
     // Cdea state
     UInt8     lastCdeaTwoBytes[2];
