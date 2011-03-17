@@ -56,6 +56,8 @@ class REACDataStream : public OSObject {
     };
     
 public:
+    
+    
     enum REACStreamType {
         REAC_STREAM_FILLER = 0,
         REAC_STREAM_CONTROL = 1,
@@ -63,6 +65,7 @@ public:
         REAC_STREAM_SPLIT_ANNOUNCE = 3
     };
     
+    static const UInt8 REAC_SPLIT_ANNOUNCE_BEFORE[];
     static const UInt8 STREAM_TYPE_IDENTIFIERS[][2];
     
     virtual bool initConnection(com_pereckerdal_driver_REACConnection *conn);
@@ -77,6 +80,8 @@ public:
     void gotPacket(const REACPacketHeader *packet);
     IOReturn processPacket(REACPacketHeader *packet);
     
+    void prepareSplitAnnounce(REACPacketHeader *packet);
+    
     static bool checkChecksum(const REACPacketHeader *packet);
     static UInt8 applyChecksum(REACPacketHeader *packet);
     
@@ -85,6 +90,10 @@ protected:
     com_pereckerdal_driver_REACConnection *connection;
     UInt64    lastAnnouncePacket; // The counter of the last announce counter packet
     UInt64    counter;
+    
+    // Cfea state
+    UInt32    cfeaGotSplitAnnounce;
+    UInt8     cfeaSplitAnnounceAddr[ETHER_ADDR_LEN];
     
     // Cdea state
     UInt8     lastCdeaTwoBytes[2];

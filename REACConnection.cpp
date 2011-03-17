@@ -389,9 +389,6 @@ Done:
 }
 
 IOReturn REACConnection::pushSplitAnnouncementPacket() {
-    static const UInt8 unknownData[] = {
-        0x01, 0x00, 0x7f, 0x00, 0x01, 0x03, 0x08, 0x43, 0x05
-    };
     const UInt32 fillerSize = 288;
     const UInt32 fillerOffset = sizeof(EthernetHeader)+sizeof(REACPacketHeader);
     const UInt32 endingOffset = fillerOffset+fillerSize;
@@ -425,13 +422,7 @@ IOReturn REACConnection::pushSplitAnnouncementPacket() {
     
     /// Prepare REAC packet header
     rph.setCounter(splitAnnouncementCounter++);
-    memcpy(rph.type, REACDataStream::STREAM_TYPE_IDENTIFIERS[REACDataStream::REAC_STREAM_SPLIT_ANNOUNCE], sizeof(rph.type));
-    memcpy(rph.data, unknownData, sizeof(unknownData));
-    memcpy(rph.data+sizeof(unknownData), interfaceAddr, sizeof(interfaceAddr));
-    memset(rph.data+sizeof(unknownData)+sizeof(interfaceAddr), 0,
-           sizeof(rph.data)-sizeof(unknownData)-sizeof(interfaceAddr));
-    REACDataStream::applyChecksum(&rph);
-    
+    dataStream->prepareSplitAnnounce(&rph);    
     
     /// Copy REAC header
     if (kIOReturnSuccess != MbufUtils::copyFromBufferToMbuf(mbuf, sizeof(EthernetHeader), sizeof(REACPacketHeader), &rph)) {
@@ -477,27 +468,21 @@ void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, voi
         return;
     }
     
-    // TODO Make sure to not parse the outgoing packets
-    // Hack to avoid processing outbound packets (this obviously needs to be better in the future)
-    if (REAC_MASTER == proto->mode) {
-        return;
-    }
-    
     const int samplesSize = REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*proto->deviceInfo->in_channels;
     
     mbuf_t *data = (mbuf_t *)data_mbuf;
     UInt32 len = MbufUtils::mbufTotalLength(*data);
     REACPacketHeader packetHeader;
     
-    // Check packet length
-    if (sizeof(REACPacketHeader)+samplesSize+sizeof(UInt16) != len) {
-        IOLog("REACConnection[%p]::filterCommandGateMsg(): Got packet of invalid length\n", proto);
+    // Check that the packet length is long enough
+    if (len < sizeof(REACPacketHeader)+sizeof(REACConstants::ENDING)) {
+        IOLog("REACConnection[%p]::filterCommandGateMsg(): Got packet of too short length\n", proto);
         return;
     }
-    
+        
     // Check packet ending
     UInt8 packetEnding[sizeof(REACConstants::ENDING)];
-    if (0 != mbuf_copydata(*data, sizeof(REACPacketHeader)+samplesSize, sizeof(REACConstants::ENDING), &packetEnding)) {
+    if (0 != mbuf_copydata(*data, len-sizeof(REACConstants::ENDING), sizeof(REACConstants::ENDING), &packetEnding)) {
         IOLog("REACConnection[%p]::filterCommandGateMsg(): Failed to fetch REAC packet ending\n", proto);
         return;
     }
@@ -514,7 +499,7 @@ void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, voi
     }
     
     // Check packet counter
-    if (proto->isConnected() /* This prunes a lost packet message when connecting */ &&
+    if (proto->isConnected() && /* This prunes a lost packet message when connecting */
         proto->lastCounter+1 != packetHeader.getCounter()) {
         if (!(65535 == proto->lastCounter && 0 == packetHeader.counter)) {
             IOLog("REACConnection[%p]::filterCommandGateMsg(): Lost packet [%d %d]\n",
@@ -522,41 +507,44 @@ void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, voi
         }
     }
     
-    // Hack: Announce connect
-    if (!proto->isConnected()) {
-        proto->connected = true;
-        if (NULL != proto->connectionCallback) {
-            proto->connectionCallback(proto, &proto->cookieA, &proto->cookieB, proto->deviceInfo);
+    // Process packet header
+    proto->dataStream->gotPacket(&packetHeader);
+    
+    // Check packet length
+    if (sizeof(REACPacketHeader)+samplesSize+sizeof(UInt16) == len) {
+        // Hack: Announce connect
+        if (!proto->isConnected()) {
+            proto->connected = true;
+            if (NULL != proto->connectionCallback) {
+                proto->connectionCallback(proto, &proto->cookieA, &proto->cookieB, proto->deviceInfo);
+            }
         }
-    }
-    
-    // Save the time we got the packet, for use by REACConnection::timerFired
-    proto->lastSeenConnectionCounter = proto->connectionCounter;
-    
-    
-    if (proto->isConnected()) {
-        if (NULL != proto->samplesCallback) {
-            UInt8* inBuffer = NULL;
-            UInt32 inBufferSize = 0;
-            proto->samplesCallback(proto, &proto->cookieA, &proto->cookieB, &inBuffer, &inBufferSize);
-            
-            if (NULL != inBuffer) {
-                const UInt32 bytesPerSample = REAC_RESOLUTION * proto->deviceInfo->in_channels;
-                const UInt32 bytesPerPacket = bytesPerSample * REAC_SAMPLES_PER_PACKET;
+        
+        // Save the time we got the packet, for use by REACConnection::timerFired
+        proto->lastSeenConnectionCounter = proto->connectionCounter;
+        
+        if (proto->isConnected()) {
+            if (NULL != proto->samplesCallback) {
+                UInt8* inBuffer = NULL;
+                UInt32 inBufferSize = 0;
+                proto->samplesCallback(proto, &proto->cookieA, &proto->cookieB, &inBuffer, &inBufferSize);
                 
-                if (inBufferSize != bytesPerPacket) {
-                    IOLog("REACConnection::filterCommandGateMsg(): Got incorrectly sized buffer (not the same as a packet).\n");
-                }
-                else {
-                    MbufUtils::copyAudioFromMbufToBuffer(*data, sizeof(REACPacketHeader), inBufferSize, inBuffer);
+                if (NULL != inBuffer) {
+                    const UInt32 bytesPerSample = REAC_RESOLUTION * proto->deviceInfo->in_channels;
+                    const UInt32 bytesPerPacket = bytesPerSample * REAC_SAMPLES_PER_PACKET;
+                    
+                    if (inBufferSize != bytesPerPacket) {
+                        IOLog("REACConnection::filterCommandGateMsg(): Got incorrectly sized buffer (not the same as a packet).\n");
+                    }
+                    else {
+                        MbufUtils::copyAudioFromMbufToBuffer(*data, sizeof(REACPacketHeader), inBufferSize, inBuffer);
+                    }
                 }
             }
             
-            proto->dataStream->gotPacket(&packetHeader);
-        }
-        
-        if (REAC_SLAVE == proto->mode) {
-            proto->getAndPushSamples();
+            if (REAC_SLAVE == proto->mode) {
+                proto->getAndPushSamples();
+            }
         }
     }
     
@@ -570,7 +558,7 @@ errno_t REACConnection::filterInputFunc(void *cookie,
                                         mbuf_t *data,
                                         char **frame_ptr) {
     REACConnection *proto = (REACConnection *)cookie;
-    
+
     char *header = *frame_ptr;
     if (!(REACConstants::PROTOCOL[0] == ((UInt8*)header)[12] && REACConstants::PROTOCOL[1] == ((UInt8*)header)[13])) {
         // This is not a REAC packet. Ignore.
