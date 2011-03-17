@@ -144,9 +144,14 @@ protected:
     UInt64              counterAtLastSplitAnnounce;
     
     // REAC_MASTER state
-    OSArray  *splitUnits;
-    UInt32    cfeaGotSplitAnnounceState;
-    UInt8     cfeaSplitAnnounceAddr[ETHER_ADDR_LEN];
+    enum GotSplitAnnounceState {
+        GOT_SPLIT_NOT_INITIATED,
+        GOT_SPLIT_FIRST_SPLIT_ANNOUNCE,
+        GOT_SPLIT_SENT_SPLIT_ANNOUNCE_RESPONSE
+    };
+    OSArray               *splitUnits;
+    GotSplitAnnounceState  cfeaGotSplitAnnounceState; // TODO Make sure that it can never get stuck in a certain state and always eventually goes back to GOT_SPLIT_NOT_INITIATED
+    UInt8                  cfeaSplitAnnounceAddr[ETHER_ADDR_LEN];
     
     bool updateLastHeardFromSplitUnit(const com_pereckerdal_driver_EthernetHeader *header, UInt32 addrLen, const UInt8 *addr);
     IOReturn splitUnitConnected(UInt8 identifier, UInt32 addrLen, const UInt8 *addr);

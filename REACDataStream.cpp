@@ -75,7 +75,7 @@ bool REACDataStream::initConnection(REACConnection* conn) {
     if (NULL == splitUnits) {
         goto Fail;
     }
-    cfeaGotSplitAnnounceState = 0;
+    cfeaGotSplitAnnounceState = GOT_SPLIT_NOT_INITIATED;
     
     return true;
     
@@ -131,8 +131,8 @@ void REACDataStream::gotPacket(const REACPacketHeader *packet, const EthernetHea
                     sizeof(STREAM_TYPE_IDENTIFIERS[0]))) {
         if (REACConnection::REAC_MASTER == connection->getMode()) {
             bool found = REACDataStream::updateLastHeardFromSplitUnit(header, sizeof(header->shost), header->shost);
-            if (!found && 0 == cfeaGotSplitAnnounceState) {
-                cfeaGotSplitAnnounceState = 1;
+            if (!found && GOT_SPLIT_NOT_INITIATED == cfeaGotSplitAnnounceState) {
+                cfeaGotSplitAnnounceState = GOT_SPLIT_FIRST_SPLIT_ANNOUNCE;
                 memcpy(cfeaSplitAnnounceAddr, packet->data+sizeof(REAC_SPLIT_ANNOUNCE_FIRST), sizeof(cfeaSplitAnnounceAddr));
             }
         }
@@ -169,12 +169,12 @@ IOReturn REACDataStream::processPacket(REACPacketHeader *packet) {
     
     packet->setCounter(counter++);
     
-    if (1 == cfeaGotSplitAnnounceState) {
+    if (GOT_SPLIT_FIRST_SPLIT_ANNOUNCE == cfeaGotSplitAnnounceState) {
         static const UInt8 splitAnnounceResponse[] = {
             0xff, 0xff, 0x01, 0x00, 0x01, 0x03, 0x0a, 0x02, 0x02
         };
         
-        cfeaGotSplitAnnounceState = 2;
+        cfeaGotSplitAnnounceState = GOT_SPLIT_SENT_SPLIT_ANNOUNCE_RESPONSE;
         
         SplitAnnounceResponsePacket *sarp = (SplitAnnounceResponsePacket *)packet->data;
         memcpy(sarp->unknown1, splitAnnounceResponse, sizeof(sarp->unknown1));
@@ -205,8 +205,8 @@ IOReturn REACDataStream::processPacket(REACPacketHeader *packet) {
                                      
         ap->unknown2[0] = 0x01;
         // This byte has something to do with splits
-        if (2 == cfeaGotSplitAnnounceState) {
-            cfeaGotSplitAnnounceState = 0;
+        if (GOT_SPLIT_SENT_SPLIT_ANNOUNCE_RESPONSE == cfeaGotSplitAnnounceState) {
+            cfeaGotSplitAnnounceState = GOT_SPLIT_NOT_INITIATED;
             ap->unknown2[1] = 0x01; // It does this. It doesn't seem to be necessary though.
         }
         else {
