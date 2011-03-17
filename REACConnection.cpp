@@ -403,6 +403,12 @@ IOReturn REACConnection::pushSplitAnnouncementPacket() {
         goto Done;
     }
     
+    /// Prepare REAC packet header
+    rph.setCounter(splitAnnouncementCounter++);
+    if (!dataStream->prepareSplitAnnounce(&rph)) {
+        goto Done;
+    }
+    
     /// Allocate mbuf
     if (0 != mbuf_allocpacket(MBUF_DONTWAIT, packetLen, NULL, &mbuf) ||
         kIOReturnSuccess != MbufUtils::setChainLength(mbuf, packetLen)) {
@@ -419,10 +425,6 @@ IOReturn REACConnection::pushSplitAnnouncementPacket() {
         IOLog("REACConnection::pushSplitAnnouncementPacket() - Error: Failed to copy REAC header to packet mbuf.\n");
         goto Done;
     }
-    
-    /// Prepare REAC packet header
-    rph.setCounter(splitAnnouncementCounter++);
-    dataStream->prepareSplitAnnounce(&rph);    
     
     /// Copy REAC header
     if (kIOReturnSuccess != MbufUtils::copyFromBufferToMbuf(mbuf, sizeof(EthernetHeader), sizeof(REACPacketHeader), &rph)) {
@@ -502,7 +504,7 @@ void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, voi
     // Check packet counter
     if (proto->isConnected() && /* This prunes a lost packet message when connecting */
         proto->lastCounter+1 != packetHeader.getCounter()) {
-        if (!(65535 == proto->lastCounter && 0 == packetHeader.counter)) {
+        if (!(65535 == proto->lastCounter && 0 == packetHeader.getCounter())) {
             IOLog("REACConnection[%p]::filterCommandGateMsg(): Lost packet [%d %d]\n",
                   proto, proto->lastCounter, packetHeader.getCounter());
         }

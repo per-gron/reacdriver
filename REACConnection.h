@@ -20,7 +20,6 @@
 #include "REACConstants.h"
 
 #define EthernetHeader              com_pereckerdal_driver_EthernetHeader
-#define REACDeviceInfo              com_pereckerdal_driver_REACDeviceInfo
 #define REACConnection              com_pereckerdal_driver_REACConnection
 
 
@@ -29,12 +28,6 @@ struct EthernetHeader {
 	UInt8 dhost[ETHER_ADDR_LEN]; /* Destination host address */
 	UInt8 shost[ETHER_ADDR_LEN]; /* Source host address */
 	UInt8 type[2]; /* IP? ARP? RARP? etc */
-};
-
-struct REACDeviceInfo {
-    UInt8 addr[ETHER_ADDR_LEN];
-    UInt32 in_channels;
-    UInt32 out_channels;
 };
 
 class REACConnection;
@@ -97,6 +90,10 @@ public:
         if (sizeof(interfaceAddr) != len) return kIOReturnBadArgument;
         memcpy(addr, interfaceAddr, len);
         return kIOReturnSuccess;
+    }
+    int interfaceAddrCmp(UInt32 len, UInt8 *addr) const {
+        if (sizeof(interfaceAddr) != len) return 1;
+        return memcmp(addr, interfaceAddr, len);
     }
     UInt8 getInChannels() const { return inChannels; }
     UInt8 getOutChannels() const { return outChannels; }

@@ -41,7 +41,7 @@ REACSplitUnit *REACSplitUnit::withAddress(UInt64 lastHeardFrom, UInt8 identifier
 }
 
 
-const UInt8 REACDataStream::REAC_SPLIT_ANNOUNCE_BEFORE[] = {
+const UInt8 REACDataStream::REAC_SPLIT_ANNOUNCE_FIRST[] = {
     0x01, 0x00, 0x7f, 0x00, 0x01, 0x03, 0x08, 0x43, 0x05
 };
 
@@ -61,10 +61,10 @@ bool REACDataStream::initConnection(REACConnection* conn) {
     connection = conn;
     lastAnnouncePacket = 0;
     counter = 0;
+    
+    cfeaHandshakeState = HANDSHAKE_NOT_INITIATED;
+    
     lastCdeaTwoBytes[0] = lastCdeaTwoBytes[1] = 0;
-    
-    cfeaGotSplitAnnounceState = 0;
-    
     packetsUntilNextCdea = 0;
     cdeaState = 0;
     cdeaPacketsSinceStateChange = -1;
@@ -74,6 +74,7 @@ bool REACDataStream::initConnection(REACConnection* conn) {
     if (NULL == splitUnits) {
         goto Fail;
     }
+    cfeaGotSplitAnnounceState = 0;
     
     return true;
     
@@ -106,6 +107,12 @@ void REACDataStream::free() {
 }
 
 void REACDataStream::gotPacket(const REACPacketHeader *packet, const EthernetHeader *header) {
+    if (0 == memcmp(packet->type,
+                    STREAM_TYPE_IDENTIFIERS[REAC_STREAM_FILLER],
+                    sizeof(STREAM_TYPE_IDENTIFIERS[0]))) {
+        return;
+    }
+    
     if (!REACDataStream::checkChecksum(packet)) {
         IOLog("REACDataStream::gotPacket(): Got packet with invalid checksum.\n");
     }
@@ -116,14 +123,40 @@ void REACDataStream::gotPacket(const REACPacketHeader *packet, const EthernetHea
     }
     IOLog("\n");*/
     
-    if (REACConnection::REAC_MASTER == connection->getMode()) {
-        if (0 == memcmp(packet->type,
-                        STREAM_TYPE_IDENTIFIERS[REAC_STREAM_SPLIT_ANNOUNCE],
-                        sizeof(STREAM_TYPE_IDENTIFIERS[0]))) {
+    if (0 == memcmp(packet->type,
+                    STREAM_TYPE_IDENTIFIERS[REAC_STREAM_SPLIT_ANNOUNCE],
+                    sizeof(STREAM_TYPE_IDENTIFIERS[0]))) {
+        if (REACConnection::REAC_MASTER == connection->getMode()) {
             bool found = REACDataStream::updateLastHeardFromSplitUnit(header, sizeof(header->shost), header->shost);
             if (!found && 0 == cfeaGotSplitAnnounceState) {
                 cfeaGotSplitAnnounceState = 1;
-                memcpy(cfeaSplitAnnounceAddr, packet->data+sizeof(REAC_SPLIT_ANNOUNCE_BEFORE), sizeof(cfeaSplitAnnounceAddr));
+                memcpy(cfeaSplitAnnounceAddr, packet->data+sizeof(REAC_SPLIT_ANNOUNCE_FIRST), sizeof(cfeaSplitAnnounceAddr));
+            }
+        }
+    }
+    if (0 == memcmp(packet->type,
+                    STREAM_TYPE_IDENTIFIERS[REAC_STREAM_MASTER_ANNOUNCE],
+                    sizeof(STREAM_TYPE_IDENTIFIERS[0]))) {
+        if (REACConnection::REAC_SPLIT) {
+            MasterAnnouncePacket *map = (MasterAnnouncePacket *)packet->data;
+            if (HANDSHAKE_NOT_INITIATED == cfeaHandshakeState) {
+                if (0x0d == map->unknown1[6]) {
+                    memcpy(cfeaHandshakeDevice.addr, map->address, sizeof(cfeaHandshakeDevice.addr));
+                    cfeaHandshakeDevice.in_channels = map->inChannels;
+                    cfeaHandshakeDevice.out_channels = map->outChannels;
+                    cfeaHandshakeState = HANDSHAKE_GOT_MASTER_ANNOUNCE;
+                }
+            }
+            else if (HANDSHAKE_SENT_FIRST_ANNOUNCE == cfeaHandshakeState) {
+                if (0x0a == map->unknown1[6]) {
+                    if (0 == connection->interfaceAddrCmp(sizeof(map->address), map->address)) {
+                        cfeaSplitIdentifier = map->outChannels;
+                        cfeaHandshakeState = HANDSHAKE_GOT_SECOND_MASTER_ANNOUNCE;
+                    }
+                }
+            }
+            else {
+                cfeaHandshakeState = HANDSHAKE_NOT_INITIATED;
             }
         }
     }
@@ -427,13 +460,52 @@ IOReturn REACDataStream::processPacket(REACPacketHeader *packet) {
     return kIOReturnSuccess;
 }
 
-void REACDataStream::prepareSplitAnnounce(REACPacketHeader *packet) {
+bool REACDataStream::prepareSplitAnnounce(REACPacketHeader *packet) {
+    bool ret = false;
+    
     memcpy(packet->type, STREAM_TYPE_IDENTIFIERS[REACDataStream::REAC_STREAM_SPLIT_ANNOUNCE], sizeof(packet->type));
-    memcpy(packet->data, REAC_SPLIT_ANNOUNCE_BEFORE, sizeof(REAC_SPLIT_ANNOUNCE_BEFORE));
-    connection->getInterfaceAddr(ETHER_ADDR_LEN, packet->data+sizeof(REAC_SPLIT_ANNOUNCE_BEFORE));
-    memset(packet->data+sizeof(REAC_SPLIT_ANNOUNCE_BEFORE)+ETHER_ADDR_LEN, 0,
-           sizeof(packet->data)-sizeof(REAC_SPLIT_ANNOUNCE_BEFORE)-ETHER_ADDR_LEN);
+    
+    if (HANDSHAKE_GOT_MASTER_ANNOUNCE == cfeaHandshakeState) {
+        // TODO Reset the handshake state if it is not HANDSHAKE_CONNECTED and it has gone a second or so
+        memset(packet->data, 0, sizeof(packet->data));
+        memcpy(packet->data, REAC_SPLIT_ANNOUNCE_FIRST, sizeof(REAC_SPLIT_ANNOUNCE_FIRST));
+        connection->getInterfaceAddr(ETHER_ADDR_LEN, packet->data+sizeof(REAC_SPLIT_ANNOUNCE_FIRST));
+        ret = true;
+        cfeaHandshakeState = HANDSHAKE_SENT_FIRST_ANNOUNCE;
+    }
+    else if (HANDSHAKE_GOT_SECOND_MASTER_ANNOUNCE == cfeaHandshakeState) {
+        memset(packet->data, 0, sizeof(packet->data));
+        packet->data[0] = 0x01;
+        packet->data[1] = 0x00;
+        packet->data[2] = cfeaSplitIdentifier;
+        packet->data[3] = 0x00;
+        packet->data[4] = 0x01;
+        packet->data[5] = 0x03;
+        packet->data[6] = 0x08;
+        packet->data[7] = 0x42;
+        packet->data[7] = 0x05;
+        
+        connection->getInterfaceAddr(ETHER_ADDR_LEN, packet->data+sizeof(REAC_SPLIT_ANNOUNCE_FIRST));
+        ret = true;
+        cfeaHandshakeState = HANDSHAKE_CONNECTED;
+    }
+    else if (HANDSHAKE_CONNECTED == cfeaHandshakeState) {
+        memset(packet->data, 0, sizeof(packet->data));
+        packet->data[0] = 0x01;
+        packet->data[1] = 0x00;
+        packet->data[2] = cfeaSplitIdentifier;
+        packet->data[3] = 0x00;
+        packet->data[4] = 0x01;
+        packet->data[5] = 0x03;
+        packet->data[6] = 0x02;
+        packet->data[7] = 0x41;
+        packet->data[7] = 0x05;
+        
+        ret = true;
+    }
+    
     REACDataStream::applyChecksum(packet);
+    return ret;
 }
 
 bool REACDataStream::checkChecksum(const REACPacketHeader *packet) {
