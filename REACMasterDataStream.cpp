@@ -190,9 +190,8 @@ IOReturn REACMasterDataStream::processPacket(REACPacketHeader *packet, UInt32 dh
                 cdeaCurrentOffset = cdeaCurrentOffset % PAYLOAD_SIZE; \
             }
         
-        static const SInt32 CDEA_PACKET_TYPE_SIZE = 5;
-        static const SInt32 PAYLOAD_SIZE = sizeof(packet->data)-CDEA_PACKET_TYPE_SIZE-1; // -2 for checksum
-        UInt8 *payload = packet->data+CDEA_PACKET_TYPE_SIZE;
+        static const SInt32 PAYLOAD_SIZE = sizeof(packet->data)-REAC_STREAM_CONTROL_PACKET_TYPE_SIZE-1; // -2 for checksum
+        UInt8 *payload = packet->data+REAC_STREAM_CONTROL_PACKET_TYPE_SIZE;
         
         const UInt8 afterChannelInfoPayload[] = {
             0x22, 0xc8, 0x31, 0x32, 0x33, 0x34, 0x01, 0x00, 0x00,
@@ -221,12 +220,6 @@ IOReturn REACMasterDataStream::processPacket(REACPacketHeader *packet, UInt32 dh
             { 0x58, 0x56, 0x53, 0x43, 0x45, 0x4e, 0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }
         };
         
-        static const UInt8 cdeaPacketTypes[][CDEA_PACKET_TYPE_SIZE] = {
-            { 0x01, 0x00, 0x00, 0x1a, 0x00 },
-            { 0x01, 0x02, 0x00, 0x0e, 0x00 },
-            { 0x01, 0x03, 0x00, 0x19, 0x01 },
-            { 0x01, 0x01, 0x00, 0x18, 0x00 }
-        };
         UInt32 cdeaPacketType = 0; // Default packet type
         
         ++cdeaPacketsSinceStateChange;
@@ -366,7 +359,7 @@ IOReturn REACMasterDataStream::processPacket(REACPacketHeader *packet, UInt32 dh
         }
         
         setPacketTypeMacro(REAC_STREAM_CONTROL);
-        memcpy(packet->data, cdeaPacketTypes[cdeaPacketType], sizeof(cdeaPacketTypes[cdeaPacketType]));
+        memcpy(packet->data, REAC_STREAM_CONTROL_PACKET_TYPE[cdeaPacketType], sizeof(REAC_STREAM_CONTROL_PACKET_TYPE[cdeaPacketType]));
         
         lastCdeaTwoBytes[0] = packet->data[sizeof(packet->data)-2];
         lastCdeaTwoBytes[1] = REACDataStream::applyChecksum(packet);
@@ -389,9 +382,7 @@ bool REACMasterDataStream::gotPacket(const REACPacketHeader *packet, const Ether
         return true;
     }
     
-    if (0 == memcmp(packet->type,
-                    STREAM_TYPE_IDENTIFIERS[REAC_STREAM_SPLIT_ANNOUNCE],
-                    sizeof(STREAM_TYPE_IDENTIFIERS[0]))) {
+    if (isPacketType(packet, REAC_STREAM_SPLIT_ANNOUNCE)) {
         bool found = REACMasterDataStream::updateLastHeardFromSplitUnit(header, sizeof(header->shost), header->shost);
         if (!found && GOT_SPLIT_NOT_INITIATED == masterGotSplitAnnounceState) {
             masterGotSplitAnnounceState = GOT_SPLIT_ANNOUNCE;

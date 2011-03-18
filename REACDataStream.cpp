@@ -24,6 +24,19 @@ const UInt8 REACDataStream::STREAM_TYPE_IDENTIFIERS[][2] = {
 };
 
 
+const UInt8 REACDataStream::REAC_STREAM_CONTROL_PACKET_TYPE[][REAC_STREAM_CONTROL_PACKET_TYPE_SIZE] = {
+    { 0x01, 0x00, 0x00, 0x1a, 0x00 },
+    { 0x01, 0x02, 0x00, 0x0e, 0x00 },
+    { 0x01, 0x03, 0x00, 0x19, 0x01 },
+    { 0x01, 0x01, 0x00, 0x18, 0x00 },
+    
+    // Slave announce types
+    { 0x01, 0x03, 0x00, 0x10, 0x82 },
+    { 0x04, 0x03, 0x00, 0x14, 0x00 },
+    { 0x04, 0x03, 0x00, 0x13, 0x00 },
+    { 0x01, 0x03, 0x00, 0x01, 0x81 }
+};
+
 #define super OSObject
 
 OSDefineMetaClassAndStructors(REACDataStream, super)
@@ -107,4 +120,8 @@ UInt8 REACDataStream::applyChecksum(REACPacketHeader *packet) {
     sum = (256 - (int)sum);
     packet->data[31] = sum;
     return sum;
+}
+
+bool REACDataStream::isPacketType(const REACPacketHeader *packet, REACStreamType st) {
+    return 0 == memcmp(packet->type, STREAM_TYPE_IDENTIFIERS[st], sizeof(STREAM_TYPE_IDENTIFIERS[st]));
 }

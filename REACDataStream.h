@@ -77,6 +77,19 @@ class REACDataStream : public OSObject {
     
     static const UInt8 STREAM_TYPE_IDENTIFIERS[][2];
     
+    enum REACStreamControlPacketType {
+        CONTROL_PACKET_TYPE_ONE = 0,
+        CONTROL_PACKET_TYPE_TWO = 1,
+        CONTROL_PACKET_TYPE_THREE = 3,
+        CONTROL_PACKET_TYPE_FOUR = 4,
+        CONTROL_PACKET_TYPE_SLAVE_ANNOUNCE1 = 5,
+        CONTROL_PACKET_TYPE_SLAVE_ANNOUNCE2 = 6,
+        CONTROL_PACKET_TYPE_SLAVE_ANNOUNCE3 = 7,
+        CONTROL_PACKET_TYPE_SLAVE_ANNOUNCE4 = 8
+    };
+#   define REAC_STREAM_CONTROL_PACKET_TYPE_SIZE 5
+    static const UInt8 REAC_STREAM_CONTROL_PACKET_TYPE[][REAC_STREAM_CONTROL_PACKET_TYPE_SIZE];
+    
     virtual bool initConnection(com_pereckerdal_driver_REACConnection *conn);
     
 public:
@@ -110,6 +123,8 @@ protected:
         
     static bool checkChecksum(const REACPacketHeader *packet);
     static UInt8 applyChecksum(REACPacketHeader *packet);
+    
+    static bool isPacketType(const REACPacketHeader *packet, REACStreamType st);
 };
 
 

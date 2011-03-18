@@ -28,15 +28,15 @@ public:
     bool prepareSplitAnnounce(REACPacketHeader *packet);
     
 protected:
-    enum SplitHandshakeState {
+    enum HandshakeState {
         HANDSHAKE_NOT_INITIATED,
         HANDSHAKE_GOT_MASTER_ANNOUNCE,
         HANDSHAKE_SENT_FIRST_ANNOUNCE,
         HANDSHAKE_GOT_SECOND_MASTER_ANNOUNCE,
         HANDSHAKE_CONNECTED
     };
-    SplitHandshakeState splitHandshakeState;
-    REACDeviceInfo      splitMasterDevice;
+    HandshakeState      handshakeState;
+    REACDeviceInfo      masterDevice;
     UInt8               splitIdentifier;
     UInt64              counterAtLastSplitAnnounce;
 };

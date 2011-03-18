@@ -12,6 +12,8 @@
 
 #define EthernetHeader              com_pereckerdal_driver_EthernetHeader
 
+#define ETHER_ADDR_LEN 6
+
 /* Ethernet header */
 struct EthernetHeader {
 	UInt8 dhost[ETHER_ADDR_LEN]; /* Destination host address */
