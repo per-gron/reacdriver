@@ -35,7 +35,7 @@
 
 #define super IOAudioEngine
 
-OSDefineMetaClassAndStructors(REACAudioEngine, IOAudioEngine)
+OSDefineMetaClassAndStructors(REACAudioEngine, super)
 
 const SInt32 REACAudioEngine::kVolumeMax = 65535;
 const SInt32 REACAudioEngine::kGainMax = 65535;

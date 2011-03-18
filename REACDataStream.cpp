@@ -55,7 +55,7 @@ const UInt8 REACDataStream::STREAM_TYPE_IDENTIFIERS[][2] = {
 
 #define super OSObject
 
-OSDefineMetaClassAndStructors(REACDataStream, OSObject)
+OSDefineMetaClassAndStructors(REACDataStream, super)
 
 bool REACDataStream::initConnection(REACConnection* conn) {
     connection = conn;
@@ -105,61 +105,6 @@ void REACDataStream::deinit() {
 void REACDataStream::free() {
     deinit();
     super::free();
-}
-
-void REACDataStream::gotPacket(const REACPacketHeader *packet, const EthernetHeader *header) {
-    recievedPacketCounter++;
-    
-    if (0 == memcmp(packet->type,
-                    STREAM_TYPE_IDENTIFIERS[REAC_STREAM_FILLER],
-                    sizeof(STREAM_TYPE_IDENTIFIERS[0]))) {
-        return;
-    }
-    
-    if (!REACDataStream::checkChecksum(packet)) {
-        IOLog("REACDataStream::gotPacket(): Got packet with invalid checksum.\n");
-    }
-    
-    /*IOLog("Got packet: "); // TODO Debug
-    for (UInt32 i=0; i<sizeof(REACPacketHeader); i++) {
-        IOLog("%02x", ((UInt8*)packet)[i]);
-    }
-    IOLog("\n");*/
-    
-    if (0 == memcmp(packet->type,
-                    STREAM_TYPE_IDENTIFIERS[REAC_STREAM_SPLIT_ANNOUNCE],
-                    sizeof(STREAM_TYPE_IDENTIFIERS[0]))) {
-        if (REACConnection::REAC_MASTER == connection->getMode()) {
-            bool found = REACDataStream::updateLastHeardFromSplitUnit(header, sizeof(header->shost), header->shost);
-            if (!found && GOT_SPLIT_NOT_INITIATED == masterGotSplitAnnounceState) {
-                masterGotSplitAnnounceState = GOT_SPLIT_ANNOUNCE;
-                memcpy(masterSplitAnnounceAddr, packet->data+sizeof(REAC_SPLIT_ANNOUNCE_FIRST), sizeof(masterSplitAnnounceAddr));
-            }
-        }
-    }
-    if (0 == memcmp(packet->type,
-                    STREAM_TYPE_IDENTIFIERS[REAC_STREAM_MASTER_ANNOUNCE],
-                    sizeof(STREAM_TYPE_IDENTIFIERS[0]))) {
-        if (REACConnection::REAC_SPLIT) {
-            MasterAnnouncePacket *map = (MasterAnnouncePacket *)packet->data;
-            if (HANDSHAKE_NOT_INITIATED == splitHandshakeState) {
-                if (0x0d == map->unknown1[6]) {
-                    memcpy(splitMasterDevice.addr, map->address, sizeof(splitMasterDevice.addr));
-                    splitMasterDevice.in_channels = map->inChannels;
-                    splitMasterDevice.out_channels = map->outChannels;
-                    splitHandshakeState = HANDSHAKE_GOT_MASTER_ANNOUNCE;
-                }
-            }
-            else if (HANDSHAKE_SENT_FIRST_ANNOUNCE == splitHandshakeState) {
-                if (0x0a == map->unknown1[6]) {
-                    if (0 == connection->interfaceAddrCmp(sizeof(map->address), map->address)) {
-                        splitIdentifier = map->outChannels;
-                        splitHandshakeState = HANDSHAKE_GOT_SECOND_MASTER_ANNOUNCE;
-                    }
-                }
-            }
-        }
-    }
 }
 
 IOReturn REACDataStream::processPacket(REACPacketHeader *packet, UInt32 dhostLen, UInt8 *dhost) {
@@ -468,6 +413,62 @@ IOReturn REACDataStream::processPacket(REACPacketHeader *packet, UInt32 dhostLen
     --packetsUntilNextCdea;
     
     return kIOReturnSuccess;
+}
+
+void REACDataStream::gotPacket(const REACPacketHeader *packet, const EthernetHeader *header) {
+    recievedPacketCounter++;
+    
+    if (0 == memcmp(packet->type,
+                    STREAM_TYPE_IDENTIFIERS[REAC_STREAM_FILLER],
+                    sizeof(STREAM_TYPE_IDENTIFIERS[0]))) {
+        return;
+    }
+    
+    if (!REACDataStream::checkChecksum(packet)) {
+        IOLog("REACDataStream::gotPacket(): Got packet with invalid checksum.\n");
+        return;
+    }
+    
+    /*IOLog("Got packet: "); // TODO Debug
+     for (UInt32 i=0; i<sizeof(REACPacketHeader); i++) {
+     IOLog("%02x", ((UInt8*)packet)[i]);
+     }
+     IOLog("\n");*/
+    
+    if (REACConnection::REAC_MASTER == connection->getMode()) {
+        if (0 == memcmp(packet->type,
+                        STREAM_TYPE_IDENTIFIERS[REAC_STREAM_SPLIT_ANNOUNCE],
+                        sizeof(STREAM_TYPE_IDENTIFIERS[0]))) {
+            bool found = REACDataStream::updateLastHeardFromSplitUnit(header, sizeof(header->shost), header->shost);
+            if (!found && GOT_SPLIT_NOT_INITIATED == masterGotSplitAnnounceState) {
+                masterGotSplitAnnounceState = GOT_SPLIT_ANNOUNCE;
+                memcpy(masterSplitAnnounceAddr, packet->data+sizeof(REAC_SPLIT_ANNOUNCE_FIRST), sizeof(masterSplitAnnounceAddr));
+            }
+        }
+    }
+    if (REACConnection::REAC_SPLIT == connection->getMode()) {
+        if (0 == memcmp(packet->type,
+                        STREAM_TYPE_IDENTIFIERS[REAC_STREAM_MASTER_ANNOUNCE],
+                        sizeof(STREAM_TYPE_IDENTIFIERS[0]))) {
+            MasterAnnouncePacket *map = (MasterAnnouncePacket *)packet->data;
+            if (HANDSHAKE_NOT_INITIATED == splitHandshakeState) {
+                if (0x0d == map->unknown1[6]) {
+                    memcpy(splitMasterDevice.addr, map->address, sizeof(splitMasterDevice.addr));
+                    splitMasterDevice.in_channels = map->inChannels;
+                    splitMasterDevice.out_channels = map->outChannels;
+                    splitHandshakeState = HANDSHAKE_GOT_MASTER_ANNOUNCE;
+                }
+            }
+            else if (HANDSHAKE_SENT_FIRST_ANNOUNCE == splitHandshakeState) {
+                if (0x0a == map->unknown1[6]) {
+                    if (0 == connection->interfaceAddrCmp(sizeof(map->address), map->address)) {
+                        splitIdentifier = map->outChannels;
+                        splitHandshakeState = HANDSHAKE_GOT_SECOND_MASTER_ANNOUNCE;
+                    }
+                }
+            }
+        }
+    }
 }
 
 bool REACDataStream::prepareSplitAnnounce(REACPacketHeader *packet) {

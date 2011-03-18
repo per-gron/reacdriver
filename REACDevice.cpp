@@ -15,7 +15,7 @@
 
 #define super IOAudioDevice
 
-OSDefineMetaClassAndStructors(REACDevice, IOAudioDevice)
+OSDefineMetaClassAndStructors(REACDevice, super)
 
 bool REACDevice::init(OSDictionary *properties) {
     protocols = OSArray::withCapacity(5);

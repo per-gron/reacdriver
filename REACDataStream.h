@@ -108,9 +108,9 @@ protected:
     
 public:
 
-    void gotPacket(const REACPacketHeader *packet, const com_pereckerdal_driver_EthernetHeader *header);
     // Return kIOReturnSuccess on success, kIOReturnAborted if no packet should be sent, and anything else on error.
     IOReturn processPacket(REACPacketHeader *packet, UInt32 dhostLen, UInt8 *dhost);
+    void gotPacket(const REACPacketHeader *packet, const com_pereckerdal_driver_EthernetHeader *header);
     
     // Returns true if a packet should be sent
     bool prepareSplitAnnounce(REACPacketHeader *packet);

@@ -11,6 +11,12 @@
 		54D0AD970A5E329B006380BD /* REACAudioEngine.h in Headers */ = {isa = PBXBuildFile; fileRef = C93407630601317E002E6A19 /* REACAudioEngine.h */; };
 		54D0AD9B0A5E329B006380BD /* REACAudioEngine.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C93407640601317E002E6A19 /* REACAudioEngine.cpp */; };
 		54D0AD9D0A5E329B006380BD /* REACDevice.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C93407660601317E002E6A19 /* REACDevice.cpp */; };
+		CB0C872F1333669100F8A7EA /* REACSplitDataStream.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB0C872D1333669000F8A7EA /* REACSplitDataStream.cpp */; };
+		CB0C87301333669100F8A7EA /* REACSplitDataStream.h in Headers */ = {isa = PBXBuildFile; fileRef = CB0C872E1333669000F8A7EA /* REACSplitDataStream.h */; };
+		CB0C8733133366A200F8A7EA /* REACMasterDataStream.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB0C8731133366A100F8A7EA /* REACMasterDataStream.cpp */; };
+		CB0C8734133366A200F8A7EA /* REACMasterDataStream.h in Headers */ = {isa = PBXBuildFile; fileRef = CB0C8732133366A200F8A7EA /* REACMasterDataStream.h */; };
+		CB0C8737133366B100F8A7EA /* REACSlaveDataStream.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB0C8735133366B100F8A7EA /* REACSlaveDataStream.cpp */; };
+		CB0C8738133366B100F8A7EA /* REACSlaveDataStream.h in Headers */ = {isa = PBXBuildFile; fileRef = CB0C8736133366B100F8A7EA /* REACSlaveDataStream.h */; };
 		CB102B9912D0D5FE00231CE9 /* REACConnection.h in Headers */ = {isa = PBXBuildFile; fileRef = CB102B9712D0D5FE00231CE9 /* REACConnection.h */; };
 		CB102B9A12D0D5FE00231CE9 /* REACConnection.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB102B9812D0D5FE00231CE9 /* REACConnection.cpp */; };
 		CB102BF312D0F64B00231CE9 /* REACAudioClip.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB102BF112D0F64B00231CE9 /* REACAudioClip.cpp */; };
@@ -47,6 +53,12 @@
 		C93407630601317E002E6A19 /* REACAudioEngine.h */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.c.h; path = REACAudioEngine.h; sourceTree = "<group>"; };
 		C93407640601317E002E6A19 /* REACAudioEngine.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = REACAudioEngine.cpp; sourceTree = "<group>"; };
 		C93407660601317E002E6A19 /* REACDevice.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = REACDevice.cpp; sourceTree = "<group>"; };
+		CB0C872D1333669000F8A7EA /* REACSplitDataStream.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = REACSplitDataStream.cpp; sourceTree = "<group>"; };
+		CB0C872E1333669000F8A7EA /* REACSplitDataStream.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = REACSplitDataStream.h; sourceTree = "<group>"; };
+		CB0C8731133366A100F8A7EA /* REACMasterDataStream.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = REACMasterDataStream.cpp; sourceTree = "<group>"; };
+		CB0C8732133366A200F8A7EA /* REACMasterDataStream.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = REACMasterDataStream.h; sourceTree = "<group>"; };
+		CB0C8735133366B100F8A7EA /* REACSlaveDataStream.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = REACSlaveDataStream.cpp; sourceTree = "<group>"; };
+		CB0C8736133366B100F8A7EA /* REACSlaveDataStream.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = REACSlaveDataStream.h; sourceTree = "<group>"; };
 		CB102B9712D0D5FE00231CE9 /* REACConnection.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = REACConnection.h; sourceTree = "<group>"; };
 		CB102B9812D0D5FE00231CE9 /* REACConnection.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = REACConnection.cpp; sourceTree = "<group>"; };
 		CB102BF112D0F64B00231CE9 /* REACAudioClip.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = REACAudioClip.cpp; sourceTree = "<group>"; };
@@ -114,26 +126,56 @@
 		247142CAFF3F8F9811CA285C /* Source */ = {
 			isa = PBXGroup;
 			children = (
+				CB0C87391333678700F8A7EA /* IOKit */,
+				CB0C873A133367AC00F8A7EA /* FloatSupport */,
+				CB2AFC61133367FC005D3098 /* REAC */,
+			);
+			name = Source;
+			sourceTree = "<group>";
+		};
+		CB0C87391333678700F8A7EA /* IOKit */ = {
+			isa = PBXGroup;
+			children = (
 				C93407620601317E002E6A19 /* REACDevice.h */,
 				C93407660601317E002E6A19 /* REACDevice.cpp */,
 				C93407630601317E002E6A19 /* REACAudioEngine.h */,
 				C93407640601317E002E6A19 /* REACAudioEngine.cpp */,
-				CB102B9712D0D5FE00231CE9 /* REACConnection.h */,
-				CB102B9812D0D5FE00231CE9 /* REACConnection.cpp */,
-				CB713670132F5B1A001686C9 /* REACDataStream.h */,
-				CB71366F132F5B1A001686C9 /* REACDataStream.cpp */,
 				CB102BF112D0F64B00231CE9 /* REACAudioClip.cpp */,
-				CB254E76132F9063002EDDCA /* MbufUtils.cpp */,
-				CB254E77132F9064002EDDCA /* MbufUtils.h */,
-				CB254E7C132F9E30002EDDCA /* REACConstants.h */,
-				CB254E7A132F9E18002EDDCA /* REACConstants.cpp */,
+			);
+			name = IOKit;
+			sourceTree = "<group>";
+		};
+		CB0C873A133367AC00F8A7EA /* FloatSupport */ = {
+			isa = PBXGroup;
+			children = (
 				CB3CE421132CB0CA00CAD028 /* FPU.h */,
 				CB3CE419132CB04A00CAD028 /* PCMBlitterLibTest.cpp */,
 				CB3CE41A132CB04A00CAD028 /* PCMBlitterLib.h */,
 				CB3CE41B132CB04A00CAD028 /* PCMBlitterLib.exp */,
 				CB3CE41C132CB04A00CAD028 /* PCMBlitterLib.cpp */,
 			);
-			name = Source;
+			name = FloatSupport;
+			sourceTree = "<group>";
+		};
+		CB2AFC61133367FC005D3098 /* REAC */ = {
+			isa = PBXGroup;
+			children = (
+				CB102B9712D0D5FE00231CE9 /* REACConnection.h */,
+				CB102B9812D0D5FE00231CE9 /* REACConnection.cpp */,
+				CB254E7C132F9E30002EDDCA /* REACConstants.h */,
+				CB254E7A132F9E18002EDDCA /* REACConstants.cpp */,
+				CB713670132F5B1A001686C9 /* REACDataStream.h */,
+				CB71366F132F5B1A001686C9 /* REACDataStream.cpp */,
+				CB0C872E1333669000F8A7EA /* REACSplitDataStream.h */,
+				CB0C872D1333669000F8A7EA /* REACSplitDataStream.cpp */,
+				CB0C8732133366A200F8A7EA /* REACMasterDataStream.h */,
+				CB0C8731133366A100F8A7EA /* REACMasterDataStream.cpp */,
+				CB0C8736133366B100F8A7EA /* REACSlaveDataStream.h */,
+				CB0C8735133366B100F8A7EA /* REACSlaveDataStream.cpp */,
+				CB254E76132F9063002EDDCA /* MbufUtils.cpp */,
+				CB254E77132F9064002EDDCA /* MbufUtils.h */,
+			);
+			name = REAC;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -149,6 +191,9 @@
 				CB713672132F5B1A001686C9 /* REACDataStream.h in Headers */,
 				CB254E79132F9065002EDDCA /* MbufUtils.h in Headers */,
 				CB254E7D132F9E31002EDDCA /* REACConstants.h in Headers */,
+				CB0C87301333669100F8A7EA /* REACSplitDataStream.h in Headers */,
+				CB0C8734133366A200F8A7EA /* REACMasterDataStream.h in Headers */,
+				CB0C8738133366B100F8A7EA /* REACSlaveDataStream.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -260,6 +305,9 @@
 				CB713671132F5B1A001686C9 /* REACDataStream.cpp in Sources */,
 				CB254E78132F9065002EDDCA /* MbufUtils.cpp in Sources */,
 				CB254E7B132F9E19002EDDCA /* REACConstants.cpp in Sources */,
+				CB0C872F1333669100F8A7EA /* REACSplitDataStream.cpp in Sources */,
+				CB0C8733133366A200F8A7EA /* REACMasterDataStream.cpp in Sources */,
+				CB0C8737133366B100F8A7EA /* REACSlaveDataStream.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

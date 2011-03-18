@@ -21,7 +21,7 @@
 
 #define super OSObject
 
-OSDefineMetaClassAndStructors(REACConnection, OSObject)
+OSDefineMetaClassAndStructors(REACConnection, super)
 
 bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_, REACMode mode_,
                                        reac_connection_callback_t connectionCallback_,
