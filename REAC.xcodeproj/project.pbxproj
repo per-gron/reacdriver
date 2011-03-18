@@ -24,6 +24,7 @@
 		CB254E79132F9065002EDDCA /* MbufUtils.h in Headers */ = {isa = PBXBuildFile; fileRef = CB254E77132F9064002EDDCA /* MbufUtils.h */; };
 		CB254E7B132F9E19002EDDCA /* REACConstants.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB254E7A132F9E18002EDDCA /* REACConstants.cpp */; };
 		CB254E7D132F9E31002EDDCA /* REACConstants.h in Headers */ = {isa = PBXBuildFile; fileRef = CB254E7C132F9E30002EDDCA /* REACConstants.h */; };
+		CB286A4D1333866200F0A3DE /* EthernetHeader.h in Headers */ = {isa = PBXBuildFile; fileRef = CB286A4C1333866200F0A3DE /* EthernetHeader.h */; };
 		CB3CE415132BC6FF00CAD028 /* REACAudioClip.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB102BF112D0F64B00231CE9 /* REACAudioClip.cpp */; };
 		CB3CE418132BC75100CAD028 /* libREACFloatSupport.a in Headers */ = {isa = PBXBuildFile; fileRef = CB3CE412132BC6D300CAD028 /* libREACFloatSupport.a */; };
 		CB3CE41D132CB04B00CAD028 /* PCMBlitterLibTest.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CB3CE419132CB04A00CAD028 /* PCMBlitterLibTest.cpp */; };
@@ -66,6 +67,7 @@
 		CB254E77132F9064002EDDCA /* MbufUtils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MbufUtils.h; sourceTree = "<group>"; };
 		CB254E7A132F9E18002EDDCA /* REACConstants.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = REACConstants.cpp; sourceTree = "<group>"; };
 		CB254E7C132F9E30002EDDCA /* REACConstants.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = REACConstants.h; sourceTree = "<group>"; };
+		CB286A4C1333866200F0A3DE /* EthernetHeader.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = EthernetHeader.h; sourceTree = "<group>"; };
 		CB3CE412132BC6D300CAD028 /* libREACFloatSupport.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libREACFloatSupport.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		CB3CE419132CB04A00CAD028 /* PCMBlitterLibTest.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PCMBlitterLibTest.cpp; sourceTree = "<group>"; };
 		CB3CE41A132CB04A00CAD028 /* PCMBlitterLib.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PCMBlitterLib.h; sourceTree = "<group>"; };
@@ -174,6 +176,7 @@
 				CB0C8735133366B100F8A7EA /* REACSlaveDataStream.cpp */,
 				CB254E76132F9063002EDDCA /* MbufUtils.cpp */,
 				CB254E77132F9064002EDDCA /* MbufUtils.h */,
+				CB286A4C1333866200F0A3DE /* EthernetHeader.h */,
 			);
 			name = REAC;
 			sourceTree = "<group>";
@@ -194,6 +197,7 @@
 				CB0C87301333669100F8A7EA /* REACSplitDataStream.h in Headers */,
 				CB0C8734133366A200F8A7EA /* REACMasterDataStream.h in Headers */,
 				CB0C8738133366B100F8A7EA /* REACSlaveDataStream.h in Headers */,
+				CB286A4D1333866200F0A3DE /* EthernetHeader.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

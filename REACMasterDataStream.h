@@ -11,6 +11,10 @@
 #define _REACMASTERDATASTREAM_H
 
 #include "REACDataStream.h"
+#include "EthernetHeader.h"
+
+#define REACSplitUnit           com_pereckerdal_driver_REACSplitUnit
+#define REACMasterDataStream    com_pereckerdal_driver_REACMasterDataStream
 
 // Represents one connected REAC_SPLIT device
 class REACSplitUnit : public OSObject {
@@ -45,7 +49,7 @@ protected:
 public:
     
     virtual IOReturn processPacket(REACPacketHeader *packet, UInt32 dhostLen, UInt8 *dhost);
-    virtual bool gotPacket(const REACPacketHeader *packet, const com_pereckerdal_driver_EthernetHeader *header);
+    virtual bool gotPacket(const REACPacketHeader *packet, const EthernetHeader *header);
     
 protected:
     enum GotSplitAnnounceState {
@@ -57,7 +61,7 @@ protected:
     GotSplitAnnounceState  masterGotSplitAnnounceState;
     UInt8                  masterSplitAnnounceAddr[ETHER_ADDR_LEN];
     
-    bool updateLastHeardFromSplitUnit(const com_pereckerdal_driver_EthernetHeader *header, UInt32 addrLen, const UInt8 *addr);
+    bool updateLastHeardFromSplitUnit(const EthernetHeader *header, UInt32 addrLen, const UInt8 *addr);
     IOReturn splitUnitConnected(UInt8 identifier, UInt32 addrLen, const UInt8 *addr);
     void disconnectObsoleteSplitUnits();
     

@@ -11,6 +11,9 @@
 #define _REACSLAVEDATASTREAM_H
 
 #include "REACDataStream.h"
+#include "EthernetHeader.h"
+
+#define REACSlaveDataStream    com_pereckerdal_driver_REACSlaveDataStream
 
 class REACSlaveDataStream : public REACDataStream {
     OSDeclareDefaultStructors(REACSlaveDataStream)
@@ -22,7 +25,7 @@ protected:
 public:
     
     virtual IOReturn processPacket(REACPacketHeader *packet, UInt32 dhostLen, UInt8 *dhost);
-    virtual bool gotPacket(const REACPacketHeader *packet, const com_pereckerdal_driver_EthernetHeader *header);
+    virtual bool gotPacket(const REACPacketHeader *packet, const EthernetHeader *header);
 };
 
 #endif

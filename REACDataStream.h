@@ -16,14 +16,13 @@
 #include <IOKit/IOReturn.h>
 
 #include "REACConstants.h"
+#include "EthernetHeader.h"
 
 #define REACPacketHeader        com_pereckerdal_driver_REACPacketHeader
-#define REACSplitUnit           com_pereckerdal_driver_REACSplitUnit
 #define REACDataStream          com_pereckerdal_driver_REACDataStream
 #define REACDeviceInfo          com_pereckerdal_driver_REACDeviceInfo
 
-class  com_pereckerdal_driver_REACConnection;
-struct com_pereckerdal_driver_EthernetHeader; // TODO Move this struct somewhere else. Own header file or REACConstants.h
+class com_pereckerdal_driver_REACConnection;
 
 struct REACDeviceInfo {
     UInt8 addr[ETHER_ADDR_LEN];
@@ -52,6 +51,10 @@ struct REACPacketHeader {
 // Each REAC connection is supposed to have one of these objects.
 //
 // This class is not thread safe.
+//
+// This is an abstract class and is supposed to be inherited to implement
+// the characteristics of the different REAC modes. It does, however,
+// provide a factory method for creating REACDataStream* objects.
 //
 // TODO Protected constructor/assignment operator/destructor?
 class REACDataStream : public OSObject {
@@ -96,7 +99,7 @@ public:
     // If this method is overloaded, it should be called before any other processing.
     // If it returns true, the overloaded method must not do any processing and must
     // return true.
-    virtual bool gotPacket(const REACPacketHeader *packet, const com_pereckerdal_driver_EthernetHeader *header);
+    virtual bool gotPacket(const REACPacketHeader *packet, const EthernetHeader *header);
     
 protected:
     

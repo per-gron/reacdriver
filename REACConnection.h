@@ -18,17 +18,9 @@
 
 #include "REACDataStream.h"
 #include "REACConstants.h"
+#include "EthernetHeader.h"
 
-#define EthernetHeader              com_pereckerdal_driver_EthernetHeader
 #define REACConnection              com_pereckerdal_driver_REACConnection
-
-
-/* Ethernet header */
-struct EthernetHeader {
-	UInt8 dhost[ETHER_ADDR_LEN]; /* Destination host address */
-	UInt8 shost[ETHER_ADDR_LEN]; /* Source host address */
-	UInt8 type[2]; /* IP? ARP? RARP? etc */
-};
 
 class REACConnection;
 

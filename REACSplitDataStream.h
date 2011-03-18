@@ -12,6 +12,8 @@
 
 #include "REACDataStream.h"
 
+#define REACSplitDataStream    com_pereckerdal_driver_REACSplitDataStream
+
 class REACSplitDataStream : public REACDataStream {
     OSDeclareDefaultStructors(REACSplitDataStream)
 
