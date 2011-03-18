@@ -48,25 +48,12 @@ struct REACPacketHeader {
     }
 };
 
-// Represents one connected REAC_SPLIT device
-class REACSplitUnit : public OSObject {
-    OSDeclareFinalStructors(REACSplitUnit);
-    
-public:
-    virtual bool initAddress(UInt64 lastHeardFrom, UInt8 identifier, UInt32 addrLen, const UInt8 *addr);
-    static REACSplitUnit *withAddress(UInt64 lastHeardFrom, UInt8 identifier, UInt32 addrLen, const UInt8 *addr);
-    
-    UInt64 lastHeardFrom;
-    UInt8  identifier;
-    UInt8  address[ETHER_ADDR_LEN];
-};
-
 // Handles the data stream part of a REAC stream (both input and output).
 // Each REAC connection is supposed to have one of these objects.
 //
 // This class is not thread safe.
 //
-// TODO Private constructor/assignment operator/destructor?
+// TODO Protected constructor/assignment operator/destructor?
 class REACDataStream : public OSObject {
     OSDeclareDefaultStructors(REACDataStream)
     
@@ -78,13 +65,6 @@ class REACDataStream : public OSObject {
         UInt8 unknown2[4];
     };
     
-    struct SplitAnnounceResponsePacket {
-        UInt8 unknown1[9];
-        UInt8 address[ETHER_ADDR_LEN];
-        UInt8 unknown2;
-        UInt8 identifierAssignment;
-    };
-    
     enum REACStreamType {
         REAC_STREAM_FILLER = 0,
         REAC_STREAM_CONTROL = 1,
@@ -92,28 +72,31 @@ class REACDataStream : public OSObject {
         REAC_STREAM_SPLIT_ANNOUNCE = 3
     };
     
-    static const UInt8 REAC_SPLIT_ANNOUNCE_FIRST[];
     static const UInt8 STREAM_TYPE_IDENTIFIERS[][2];
+    
+    virtual bool initConnection(com_pereckerdal_driver_REACConnection *conn);
     
 public:
     
-    virtual bool initConnection(com_pereckerdal_driver_REACConnection *conn);
     static REACDataStream *withConnection(com_pereckerdal_driver_REACConnection *conn);
-    
-protected:
-    
-    // Object destruction method that is used by free, and init on failure.
-    virtual void deinit();
-    virtual void free();
     
 public:
 
-    // Return kIOReturnSuccess on success, kIOReturnAborted if no packet should be sent, and anything else on error.
+    // Return kIOReturnSuccess on success, kIOReturnAborted if no packet should be
+    // sent, and anything else on error.
+    //
+    // This method will return kIOReturnAborted. Classes inheriting this class
+    // should overload this method if they wish to do anything else. If this method
+    // is overloaded, it must call this method.
     IOReturn processPacket(REACPacketHeader *packet, UInt32 dhostLen, UInt8 *dhost);
-    void gotPacket(const REACPacketHeader *packet, const com_pereckerdal_driver_EthernetHeader *header);
     
-    // Returns true if a packet should be sent
-    bool prepareSplitAnnounce(REACPacketHeader *packet);
+    // Returns true if the processing is finished and no further processing should
+    // be done.
+    //
+    // If this method is overloaded, it should be called before any other processing.
+    // If it returns true, the overloaded method must not do any processing and must
+    // return true.
+    bool gotPacket(const REACPacketHeader *packet, const com_pereckerdal_driver_EthernetHeader *header);
     
 protected:
     
@@ -121,42 +104,7 @@ protected:
     UInt64    lastAnnouncePacket; // The counter of the last announce counter packet
     UInt64    recievedPacketCounter;
     UInt64    counter;
-    
-    // Cdea state (used by both REAC_SLAVE and REAC_MASTER)
-    UInt8     lastCdeaTwoBytes[2];
-    SInt32    packetsUntilNextCdea;
-    SInt32    cdeaState;
-    SInt32    cdeaPacketsSinceStateChange;
-    SInt32    cdeaAtChannel;     // Used when writing the cdea channel info packets
-    SInt32    cdeaCurrentOffset; // Used when writing the cdea filler packets
-    
-    // REAC_SPLIT state
-    enum SplitHandshakeState {
-        HANDSHAKE_NOT_INITIATED,
-        HANDSHAKE_GOT_MASTER_ANNOUNCE,
-        HANDSHAKE_SENT_FIRST_ANNOUNCE,
-        HANDSHAKE_GOT_SECOND_MASTER_ANNOUNCE,
-        HANDSHAKE_CONNECTED
-    };
-    SplitHandshakeState splitHandshakeState;
-    REACDeviceInfo      splitMasterDevice;
-    UInt8               splitIdentifier;
-    UInt64              counterAtLastSplitAnnounce;
-    
-    // REAC_MASTER state
-    enum GotSplitAnnounceState {
-        GOT_SPLIT_NOT_INITIATED,
-        GOT_SPLIT_ANNOUNCE,
-        GOT_SPLIT_SENT_SPLIT_ANNOUNCE_RESPONSE
-    };
-    OSArray               *splitUnits;
-    GotSplitAnnounceState  masterGotSplitAnnounceState;
-    UInt8                  masterSplitAnnounceAddr[ETHER_ADDR_LEN];
-    
-    bool updateLastHeardFromSplitUnit(const com_pereckerdal_driver_EthernetHeader *header, UInt32 addrLen, const UInt8 *addr);
-    IOReturn splitUnitConnected(UInt8 identifier, UInt32 addrLen, const UInt8 *addr);
-    void disconnectObsoleteSplitUnits();
-    
+        
     static bool checkChecksum(const REACPacketHeader *packet);
     static UInt8 applyChecksum(REACPacketHeader *packet);
 };

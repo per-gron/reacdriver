@@ -15,6 +15,7 @@
 #include <sys/socket.h>
 
 #include "MbufUtils.h"
+#include "REACSplitDataStream.h"
 
 #define REAC_CONNECTION_CHECK_TIMEOUT_MS 500
 #define REAC_TIMEOUT_UNTIL_DISCONNECT 1000
@@ -396,6 +397,7 @@ IOReturn REACConnection::sendSplitAnnouncementPacket() {
     const UInt32 fillerOffset = sizeof(EthernetHeader)+sizeof(REACPacketHeader);
     const UInt32 endingOffset = fillerOffset+fillerSize;
     const UInt32 packetLen = endingOffset+sizeof(REACConstants::ENDING);
+    REACSplitDataStream *splitDataStream;
     REACPacketHeader rph;
     mbuf_t mbuf = NULL;
     int result = kIOReturnError;
@@ -407,8 +409,13 @@ IOReturn REACConnection::sendSplitAnnouncementPacket() {
     }
     
     /// Prepare REAC packet header
+    splitDataStream = OSDynamicCast(REACSplitDataStream, dataStream);
+    if (NULL == splitDataStream) {
+        result = kIOReturnInternalError;
+        goto Done;
+    }
     rph.setCounter(splitAnnouncementCounter++);
-    if (!dataStream->prepareSplitAnnounce(&rph)) {
+    if (!splitDataStream->prepareSplitAnnounce(&rph)) {
         goto Done;
     }
     

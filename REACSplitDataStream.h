@@ -14,16 +14,29 @@
 
 class REACSplitDataStream : public REACDataStream {
     OSDeclareDefaultStructors(REACSplitDataStream)
-public:
+
+protected:
+    
     virtual bool initConnection(com_pereckerdal_driver_REACConnection *conn);
     
 public:
-    // Return kIOReturnSuccess on success, kIOReturnAborted if no packet should be sent, and anything else on error.
-    //virtual IOReturn processPacket(REACPacketHeader *packet, UInt32 dhostLen, UInt8 *dhost);
-    //virtual void gotPacket(const REACPacketHeader *packet, const com_pereckerdal_driver_EthernetHeader *header);
+    virtual bool gotPacket(const REACPacketHeader *packet, const com_pereckerdal_driver_EthernetHeader *header);
     
     // Returns true if a packet should be sent
     bool prepareSplitAnnounce(REACPacketHeader *packet);
+    
+protected:
+    enum SplitHandshakeState {
+        HANDSHAKE_NOT_INITIATED,
+        HANDSHAKE_GOT_MASTER_ANNOUNCE,
+        HANDSHAKE_SENT_FIRST_ANNOUNCE,
+        HANDSHAKE_GOT_SECOND_MASTER_ANNOUNCE,
+        HANDSHAKE_CONNECTED
+    };
+    SplitHandshakeState splitHandshakeState;
+    REACDeviceInfo      splitMasterDevice;
+    UInt8               splitIdentifier;
+    UInt64              counterAtLastSplitAnnounce;
 };
 
 

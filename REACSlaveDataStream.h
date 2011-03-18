@@ -14,21 +14,15 @@
 
 class REACSlaveDataStream : public REACDataStream {
     OSDeclareDefaultStructors(REACSlaveDataStream)
-public:
-    
-    virtual bool initConnection(com_pereckerdal_driver_REACConnection *conn);
     
 protected:
     
-    // Object destruction method that is used by free, and init on failure.
-    virtual void deinit();
-    virtual void free();
+    virtual bool initConnection(com_pereckerdal_driver_REACConnection *conn);
     
 public:
     
-    // Return kIOReturnSuccess on success, kIOReturnAborted if no packet should be sent, and anything else on error.
-    //virtual IOReturn processPacket(REACPacketHeader *packet, UInt32 dhostLen, UInt8 *dhost);
-    //virtual void gotPacket(const REACPacketHeader *packet, const com_pereckerdal_driver_EthernetHeader *header);
+    virtual IOReturn processPacket(REACPacketHeader *packet, UInt32 dhostLen, UInt8 *dhost);
+    virtual bool gotPacket(const REACPacketHeader *packet, const com_pereckerdal_driver_EthernetHeader *header);
 };
 
 #endif

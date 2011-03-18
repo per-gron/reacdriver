@@ -12,13 +12,31 @@
 
 #include "REACDataStream.h"
 
+// Represents one connected REAC_SPLIT device
+class REACSplitUnit : public OSObject {
+    OSDeclareFinalStructors(REACSplitUnit);
+    
+public:
+    virtual bool initAddress(UInt64 lastHeardFrom, UInt8 identifier, UInt32 addrLen, const UInt8 *addr);
+    static REACSplitUnit *withAddress(UInt64 lastHeardFrom, UInt8 identifier, UInt32 addrLen, const UInt8 *addr);
+    
+    UInt64 lastHeardFrom;
+    UInt8  identifier;
+    UInt8  address[ETHER_ADDR_LEN];
+};
+
 class REACMasterDataStream : public REACDataStream {
     OSDeclareDefaultStructors(REACMasterDataStream)
-public:
-    
-    virtual bool initConnection(com_pereckerdal_driver_REACConnection *conn);
     
 protected:
+    struct SplitAnnounceResponsePacket {
+        UInt8 unknown1[9];
+        UInt8 address[ETHER_ADDR_LEN];
+        UInt8 unknown2;
+        UInt8 identifierAssignment;
+    };
+
+    virtual bool initConnection(com_pereckerdal_driver_REACConnection *conn);
     
     // Object destruction method that is used by free, and init on failure.
     virtual void deinit();
@@ -26,9 +44,30 @@ protected:
     
 public:
     
-    // Return kIOReturnSuccess on success, kIOReturnAborted if no packet should be sent, and anything else on error.
-    //virtual IOReturn processPacket(REACPacketHeader *packet, UInt32 dhostLen, UInt8 *dhost);
-    //virtual void gotPacket(const REACPacketHeader *packet, const com_pereckerdal_driver_EthernetHeader *header);
+    virtual IOReturn processPacket(REACPacketHeader *packet, UInt32 dhostLen, UInt8 *dhost);
+    virtual bool gotPacket(const REACPacketHeader *packet, const com_pereckerdal_driver_EthernetHeader *header);
+    
+protected:
+    enum GotSplitAnnounceState {
+        GOT_SPLIT_NOT_INITIATED,
+        GOT_SPLIT_ANNOUNCE,
+        GOT_SPLIT_SENT_SPLIT_ANNOUNCE_RESPONSE
+    };
+    OSArray               *splitUnits;
+    GotSplitAnnounceState  masterGotSplitAnnounceState;
+    UInt8                  masterSplitAnnounceAddr[ETHER_ADDR_LEN];
+    
+    bool updateLastHeardFromSplitUnit(const com_pereckerdal_driver_EthernetHeader *header, UInt32 addrLen, const UInt8 *addr);
+    IOReturn splitUnitConnected(UInt8 identifier, UInt32 addrLen, const UInt8 *addr);
+    void disconnectObsoleteSplitUnits();
+    
+    // Cdea state
+    UInt8     lastCdeaTwoBytes[2];
+    SInt32    packetsUntilNextCdea;
+    SInt32    cdeaState;
+    SInt32    cdeaPacketsSinceStateChange;
+    SInt32    cdeaAtChannel;     // Used when writing the cdea channel info packets
+    SInt32    cdeaCurrentOffset; // Used when writing the cdea filler packets
 };
 
 #endif
