@@ -32,6 +32,13 @@ bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_
                                        void *cookieB_,
                                        UInt8 inChannels_,
                                        UInt8 outChannels_) {
+    dataStream = NULL;
+    deviceInfo = NULL;
+    filterCommandGate = NULL;
+    workLoop = NULL;
+    timerEventSource = NULL;
+    interface = NULL;
+    
     if (NULL == workLoop_) {
         goto Fail;
     }
@@ -52,11 +59,6 @@ bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_
     timerEventSource = IOTimerEventSource::timerEventSource(this, (IOTimerEventSource::Action)&REACConnection::timerFired);
     if (NULL == timerEventSource) {
         IOLog("REACConnection::initWithInterface() - Error: Failed to create timer event source.\n");
-        goto Fail;
-    }
-    
-    dataStream = REACDataStream::withConnection(this);
-    if (NULL == dataStream) {
         goto Fail;
     }
     
@@ -89,6 +91,11 @@ bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_
     mode = mode_;
     inChannels = inChannels_;
     outChannels = outChannels_;
+    
+    dataStream = REACDataStream::withConnection(this); // mode has to be set before this is called.
+    if (NULL == dataStream) {
+        goto Fail;
+    }
     
     ifnet_reference(interface_);
     interface = interface_;
@@ -330,7 +337,7 @@ IOReturn REACConnection::sendSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
         // The REACDataStream indicates to us that it doesn't want us to send a packet.
         goto Done;
     }
-    if (kIOReturnSuccess != processPacketRet) {
+    else if (kIOReturnSuccess != processPacketRet) {
         IOLog("REACConnection::sendSamples() - Error: Failed to process packet data stream.\n");
         goto Done;
     }
@@ -411,6 +418,7 @@ IOReturn REACConnection::sendSplitAnnouncementPacket() {
     /// Prepare REAC packet header
     splitDataStream = OSDynamicCast(REACSplitDataStream, dataStream);
     if (NULL == splitDataStream) {
+        IOLog("REACConnection::sendSplitAnnouncementPacket(): Internal error!\n");
         result = kIOReturnInternalError;
         goto Done;
     }
