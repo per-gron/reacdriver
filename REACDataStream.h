@@ -23,7 +23,7 @@
 #define REACDeviceInfo          com_pereckerdal_driver_REACDeviceInfo
 
 class  com_pereckerdal_driver_REACConnection;
-struct com_pereckerdal_driver_EthernetHeader;
+struct com_pereckerdal_driver_EthernetHeader; // TODO Move this struct somewhere else. Own header file or REACConstants.h
 
 struct REACDeviceInfo {
     UInt8 addr[ETHER_ADDR_LEN];
@@ -88,7 +88,7 @@ public:
     // This method will return kIOReturnAborted. Classes inheriting this class
     // should overload this method if they wish to do anything else. If this method
     // is overloaded, it must call this method.
-    IOReturn processPacket(REACPacketHeader *packet, UInt32 dhostLen, UInt8 *dhost);
+    virtual IOReturn processPacket(REACPacketHeader *packet, UInt32 dhostLen, UInt8 *dhost);
     
     // Returns true if the processing is finished and no further processing should
     // be done.
@@ -96,7 +96,7 @@ public:
     // If this method is overloaded, it should be called before any other processing.
     // If it returns true, the overloaded method must not do any processing and must
     // return true.
-    bool gotPacket(const REACPacketHeader *packet, const com_pereckerdal_driver_EthernetHeader *header);
+    virtual bool gotPacket(const REACPacketHeader *packet, const com_pereckerdal_driver_EthernetHeader *header);
     
 protected:
     
