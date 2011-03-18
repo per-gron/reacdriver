@@ -77,7 +77,7 @@ void REACMasterDataStream::free() {
 IOReturn REACMasterDataStream::processPacket(REACPacketHeader *packet, UInt32 dhostLen, UInt8 *dhost) {
     
 #   define setPacketTypeMacro(packetType) \
-memcpy(packet->type, STREAM_TYPE_IDENTIFIERS[packetType], sizeof(packet->type));
+        memcpy(packet->type, STREAM_TYPE_IDENTIFIERS[packetType], sizeof(packet->type));
     
     super::processPacket(packet, dhostLen, dhost);
     
@@ -147,48 +147,48 @@ memcpy(packet->type, STREAM_TYPE_IDENTIFIERS[packetType], sizeof(packet->type));
         /// machine.
         
 #       define setCdeaStateMacro(state) \
-{ \
-cdeaState = (state); \
-cdeaPacketsSinceStateChange = -1; \
-}
+            { \
+                cdeaState = (state); \
+                cdeaPacketsSinceStateChange = -1; \
+            }
         
 #       define incrementCdeaStateMacro() \
-setCdeaStateMacro(cdeaState+1);
+                setCdeaStateMacro(cdeaState+1);
         
 #       define incrementCdeaStateMacroAfterNPacketsMacro(n) \
-if (cdeaPacketsSinceStateChange >= n-1) { \
-incrementCdeaStateMacro(); \
-}
+            if (cdeaPacketsSinceStateChange >= n-1) { \
+                incrementCdeaStateMacro(); \
+            }
         
 #       define resetCdeaStateMacroAfterNPacketsMacro(n) \
-if (cdeaPacketsSinceStateChange >= n-1) { \
-setCdeaStateMacro(0); \
-}
+            if (cdeaPacketsSinceStateChange >= n-1) { \
+                setCdeaStateMacro(0); \
+            }
         
         // Used when analyzing how the slave responds when not sending all types of cdea packets
 #       define setCdeaStateMacroAfterNPacketsMacro(n, value) \
-if (cdeaPacketsSinceStateChange >= n-1) { \
-setCdeaStateMacro(value); \
-}
+            if (cdeaPacketsSinceStateChange >= n-1) { \
+                setCdeaStateMacro(value); \
+            }
         
 #       define fillPayloadMacro(initialOffset_, number_) \
-{ \
-const SInt32 distance = 10; /* Distance between numbers */ \
-const UInt8 number = number_; \
-const SInt32 initialOffset = initialOffset_; \
-\
-memset(payload, 0, PAYLOAD_SIZE); \
-\
-if (0 == cdeaPacketsSinceStateChange) { \
-cdeaCurrentOffset = initialOffset; \
-} \
-\
-while (cdeaCurrentOffset < PAYLOAD_SIZE) { \
-payload[cdeaCurrentOffset] = number; \
-cdeaCurrentOffset += distance; \
-} \
-cdeaCurrentOffset = cdeaCurrentOffset % PAYLOAD_SIZE; \
-}
+            { \
+                const SInt32 distance = 10; /* Distance between numbers */ \
+                const UInt8 number = number_; \
+                const SInt32 initialOffset = initialOffset_; \
+                \
+                memset(payload, 0, PAYLOAD_SIZE); \
+                \
+                if (0 == cdeaPacketsSinceStateChange) { \
+                    cdeaCurrentOffset = initialOffset; \
+                } \
+                \
+                while (cdeaCurrentOffset < PAYLOAD_SIZE) { \
+                    payload[cdeaCurrentOffset] = number; \
+                    cdeaCurrentOffset += distance; \
+                } \
+                cdeaCurrentOffset = cdeaCurrentOffset % PAYLOAD_SIZE; \
+            }
         
         static const SInt32 CDEA_PACKET_TYPE_SIZE = 5;
         static const SInt32 PAYLOAD_SIZE = sizeof(packet->data)-CDEA_PACKET_TYPE_SIZE-1; // -2 for checksum
