@@ -2,16 +2,6 @@
   File:REACDevice.cpp
 */
 
-/*
-    REAC is derived from Apple's 'PhantomAudioDriver'
-    sample code.  It uses the same timer mechanism to simulate a hardware
-    interrupt, with some additional code to compensate for the software
-    timer's inconsistencies.  
-    
-    REAC basically copies the mixbuffer and presents it to clients
-    as an input buffer, allowing applications to send audio one another.
-*/
-
 #include "REACDevice.h"
 
 #include <IOKit/audio/IOAudioControl.h>
@@ -107,7 +97,7 @@ bool REACDevice::createProtocolListeners() {
         
         protocol = REACConnection::withInterface(getWorkLoop(),
                                                  interface,
-                                                 REACConnection::REAC_SPLIT,
+                                                 REACConnection::REAC_SLAVE,
                                                  &REACDevice::connectionCallback,
                                                  &REACDevice::samplesCallback,
                                                  &REACDevice::getSamplesCallback,

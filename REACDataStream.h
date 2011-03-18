@@ -22,8 +22,8 @@
 #define REACDataStream          com_pereckerdal_driver_REACDataStream
 #define REACDeviceInfo          com_pereckerdal_driver_REACDeviceInfo
 
-class com_pereckerdal_driver_REACConnection;
-class com_pereckerdal_driver_EthernetHeader;
+class  com_pereckerdal_driver_REACConnection;
+struct com_pereckerdal_driver_EthernetHeader;
 
 struct REACDeviceInfo {
     UInt8 addr[ETHER_ADDR_LEN];
@@ -85,8 +85,6 @@ class REACDataStream : public OSObject {
         UInt8 identifierAssignment;
     };
     
-public:
-    
     enum REACStreamType {
         REAC_STREAM_FILLER = 0,
         REAC_STREAM_CONTROL = 1,
@@ -97,8 +95,11 @@ public:
     static const UInt8 REAC_SPLIT_ANNOUNCE_FIRST[];
     static const UInt8 STREAM_TYPE_IDENTIFIERS[][2];
     
+public:
+    
     virtual bool initConnection(com_pereckerdal_driver_REACConnection *conn);
     static REACDataStream *withConnection(com_pereckerdal_driver_REACConnection *conn);
+    
 protected:
     // Object destruction method that is used by free, and init on failure.
     virtual void deinit();
@@ -112,10 +113,10 @@ public:
     // Returns true if a packet should be sent
     bool prepareSplitAnnounce(REACPacketHeader *packet);
     
+protected:
+    
     static bool checkChecksum(const REACPacketHeader *packet);
     static UInt8 applyChecksum(REACPacketHeader *packet);
-    
-protected:
     
     com_pereckerdal_driver_REACConnection *connection;
     UInt64    lastAnnouncePacket; // The counter of the last announce counter packet
@@ -146,11 +147,11 @@ protected:
     // REAC_MASTER state
     enum GotSplitAnnounceState {
         GOT_SPLIT_NOT_INITIATED,
-        GOT_SPLIT_FIRST_SPLIT_ANNOUNCE,
+        GOT_SPLIT_ANNOUNCE,
         GOT_SPLIT_SENT_SPLIT_ANNOUNCE_RESPONSE
     };
     OSArray               *splitUnits;
-    GotSplitAnnounceState  cfeaGotSplitAnnounceState; // TODO Make sure that it can never get stuck in a certain state and always eventually goes back to GOT_SPLIT_NOT_INITIATED
+    GotSplitAnnounceState  cfeaGotSplitAnnounceState;
     UInt8                  cfeaSplitAnnounceAddr[ETHER_ADDR_LEN];
     
     bool updateLastHeardFromSplitUnit(const com_pereckerdal_driver_EthernetHeader *header, UInt32 addrLen, const UInt8 *addr);

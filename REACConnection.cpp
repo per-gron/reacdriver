@@ -80,7 +80,7 @@ bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_
     lastSeenConnectionCounter = 0;
     lastSentAnnouncementCounter = 0;
     splitAnnouncementCounter = 0;
-    connectionCallback = connectionCallback_;
+    connectionCallback = NULL; // connectionCallback_; TODO Debug
     samplesCallback = samplesCallback_;
     getSamplesCallback = getSamplesCallback_;
     cookieA = cookieA_;

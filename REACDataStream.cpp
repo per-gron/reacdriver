@@ -132,7 +132,7 @@ void REACDataStream::gotPacket(const REACPacketHeader *packet, const EthernetHea
         if (REACConnection::REAC_MASTER == connection->getMode()) {
             bool found = REACDataStream::updateLastHeardFromSplitUnit(header, sizeof(header->shost), header->shost);
             if (!found && GOT_SPLIT_NOT_INITIATED == cfeaGotSplitAnnounceState) {
-                cfeaGotSplitAnnounceState = GOT_SPLIT_FIRST_SPLIT_ANNOUNCE;
+                cfeaGotSplitAnnounceState = GOT_SPLIT_ANNOUNCE;
                 memcpy(cfeaSplitAnnounceAddr, packet->data+sizeof(REAC_SPLIT_ANNOUNCE_FIRST), sizeof(cfeaSplitAnnounceAddr));
             }
         }
@@ -169,7 +169,7 @@ IOReturn REACDataStream::processPacket(REACPacketHeader *packet) {
     
     packet->setCounter(counter++);
     
-    if (GOT_SPLIT_FIRST_SPLIT_ANNOUNCE == cfeaGotSplitAnnounceState) {
+    if (GOT_SPLIT_ANNOUNCE == cfeaGotSplitAnnounceState) {
         static const UInt8 splitAnnounceResponse[] = {
             0xff, 0xff, 0x01, 0x00, 0x01, 0x03, 0x0a, 0x02, 0x02
         };
@@ -242,11 +242,17 @@ IOReturn REACDataStream::processPacket(REACPacketHeader *packet) {
 #       define incrementCdeaStateMacroAfterNPacketsMacro(n) \
             if (cdeaPacketsSinceStateChange >= n-1) { \
                 incrementCdeaStateMacro(); \
-}
+            }
         
 #       define resetCdeaStateMacroAfterNPacketsMacro(n) \
             if (cdeaPacketsSinceStateChange >= n-1) { \
                 setCdeaStateMacro(0); \
+            }
+        
+        // Used when analyzing how the slave responds when not sending all types of cdea packets
+#       define setCdeaStateMacroAfterNPacketsMacro(n, value) \
+            if (cdeaPacketsSinceStateChange >= n-1) { \
+                setCdeaStateMacro(value); \
             }
         
 #       define fillPayloadMacro(initialOffset_, number_) \
