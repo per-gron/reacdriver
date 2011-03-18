@@ -101,29 +101,28 @@ public:
     static REACDataStream *withConnection(com_pereckerdal_driver_REACConnection *conn);
     
 protected:
+    
     // Object destruction method that is used by free, and init on failure.
     virtual void deinit();
     virtual void free();
     
 public:
-    
+
     void gotPacket(const REACPacketHeader *packet, const com_pereckerdal_driver_EthernetHeader *header);
-    IOReturn processPacket(REACPacketHeader *packet);
+    // Return kIOReturnSuccess on success, kIOReturnAborted if no packet should be sent, and anything else on error.
+    IOReturn processPacket(REACPacketHeader *packet, UInt32 dhostLen, UInt8 *dhost);
     
     // Returns true if a packet should be sent
     bool prepareSplitAnnounce(REACPacketHeader *packet);
     
 protected:
     
-    static bool checkChecksum(const REACPacketHeader *packet);
-    static UInt8 applyChecksum(REACPacketHeader *packet);
-    
     com_pereckerdal_driver_REACConnection *connection;
     UInt64    lastAnnouncePacket; // The counter of the last announce counter packet
     UInt64    recievedPacketCounter;
     UInt64    counter;
     
-    // Cdea state
+    // Cdea state (used by both REAC_SLAVE and REAC_MASTER)
     UInt8     lastCdeaTwoBytes[2];
     SInt32    packetsUntilNextCdea;
     SInt32    cdeaState;
@@ -131,7 +130,7 @@ protected:
     SInt32    cdeaAtChannel;     // Used when writing the cdea channel info packets
     SInt32    cdeaCurrentOffset; // Used when writing the cdea filler packets
     
-    // REAC_SPLIT state (this is only used when in REAC_SPLIT mode)
+    // REAC_SPLIT state
     enum SplitHandshakeState {
         HANDSHAKE_NOT_INITIATED,
         HANDSHAKE_GOT_MASTER_ANNOUNCE,
@@ -151,12 +150,15 @@ protected:
         GOT_SPLIT_SENT_SPLIT_ANNOUNCE_RESPONSE
     };
     OSArray               *splitUnits;
-    GotSplitAnnounceState  cfeaGotSplitAnnounceState;
-    UInt8                  cfeaSplitAnnounceAddr[ETHER_ADDR_LEN];
+    GotSplitAnnounceState  masterGotSplitAnnounceState;
+    UInt8                  masterSplitAnnounceAddr[ETHER_ADDR_LEN];
     
     bool updateLastHeardFromSplitUnit(const com_pereckerdal_driver_EthernetHeader *header, UInt32 addrLen, const UInt8 *addr);
     IOReturn splitUnitConnected(UInt8 identifier, UInt32 addrLen, const UInt8 *addr);
     void disconnectObsoleteSplitUnits();
+    
+    static bool checkChecksum(const REACPacketHeader *packet);
+    static UInt8 applyChecksum(REACPacketHeader *packet);
 };
 
 

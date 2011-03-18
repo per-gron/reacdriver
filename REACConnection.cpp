@@ -262,13 +262,13 @@ void REACConnection::timerFired(OSObject *target, IOTimerEventSource *sender) {
         }
         
         if (REAC_MASTER == proto->mode) {
-            proto->getAndPushSamples();
+            proto->getAndSendSamples();
         }
         else if (REAC_SPLIT == proto->mode) {
             proto->lastSentAnnouncementCounter++;
             if (proto->lastSentAnnouncementCounter*proto->timeoutNS >= 1000000000) {
                 proto->lastSentAnnouncementCounter = 0;
-                proto->pushSplitAnnouncementPacket();
+                proto->sendSplitAnnouncementPacket();
             }
         }
         
@@ -287,16 +287,16 @@ void REACConnection::timerFired(OSObject *target, IOTimerEventSource *sender) {
     sender->setTimeout(diff);
 }
 
-IOReturn REACConnection::getAndPushSamples() {
+IOReturn REACConnection::getAndSendSamples() {
     UInt8 *sampleBuffer = NULL;
     UInt32 bufSize = 0;
     if (getSamplesCallback) {
         getSamplesCallback(this, &cookieA, &cookieB, &sampleBuffer, &bufSize);
     }
-    return pushSamples(bufSize, sampleBuffer);
+    return sendSamples(bufSize, sampleBuffer);
 }
 
-IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
+IOReturn REACConnection::sendSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
     const UInt32 samplesSize = REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*
                                 (REAC_MASTER == mode ? inChannels : deviceInfo->out_channels);
     const UInt32 sampleOffset = sizeof(EthernetHeader)+sizeof(REACPacketHeader);
@@ -304,7 +304,8 @@ IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
     const UInt32 packetLen = endingOffset+sizeof(REACConstants::ENDING);
     REACPacketHeader rph;
     mbuf_t mbuf = NULL;
-    int result = kIOReturnError;
+    IOReturn result = kIOReturnError;
+    IOReturn processPacketRet;
     
     /// Do some argument checks
     if (!(REAC_SLAVE == mode || REAC_MASTER == mode)) {
@@ -316,50 +317,52 @@ IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
         goto Done;
     }
     
+    /// Prepare ethernet header
+    EthernetHeader header;
+    memcpy(header.shost, interfaceAddr, sizeof(header.shost));
+    // Don't initialize header.dhost; that's the responsibility of dataStream->processPacket
+    memcpy(&header.type, REACConstants::PROTOCOL, sizeof(REACConstants::PROTOCOL));
+    
     /// Do REAC data stream processing
-    if (kIOReturnSuccess != dataStream->processPacket(&rph)) {
-        IOLog("REACConnection::pushSamples() - Error: Failed to process packet data stream.\n");
+    processPacketRet = dataStream->processPacket(&rph, sizeof(header.dhost), header.dhost);
+    if (kIOReturnAborted == processPacketRet) {
+        // The REACDataStream indicates to us that it doesn't want us to send a packet.
+        goto Done;
+    }
+    if (kIOReturnSuccess != processPacketRet) {
+        IOLog("REACConnection::sendSamples() - Error: Failed to process packet data stream.\n");
         goto Done;
     }
     
     /// Allocate mbuf
     if (0 != mbuf_allocpacket(MBUF_DONTWAIT, packetLen, NULL, &mbuf) ||
         kIOReturnSuccess != MbufUtils::setChainLength(mbuf, packetLen)) {
-        IOLog("REACConnection::pushSamples() - Error: Failed to allocate packet mbuf.\n");
+        IOLog("REACConnection::sendSamples() - Error: Failed to allocate packet mbuf.\n");
         goto Done;
     }
     
     /// Copy ethernet header
-    EthernetHeader header;
-    memcpy(header.shost, interfaceAddr, sizeof(header.shost));
-    if (REAC_SLAVE == mode) {
-        memcpy(header.dhost, deviceInfo->addr, sizeof(header.dhost));
-    }
-    else {
-        memset(header.dhost, 0xff, ETHER_ADDR_LEN);
-    }
-    memcpy(&header.type, REACConstants::PROTOCOL, sizeof(REACConstants::PROTOCOL));
     if (kIOReturnSuccess != MbufUtils::copyFromBufferToMbuf(mbuf, 0, sizeof(EthernetHeader), &header)) {
-        IOLog("REACConnection::pushSamples() - Error: Failed to copy REAC header to packet mbuf.\n");
+        IOLog("REACConnection::sendSamples() - Error: Failed to copy REAC header to packet mbuf.\n");
         goto Done;
     }
     
     /// Copy REAC header
     if (kIOReturnSuccess != MbufUtils::copyFromBufferToMbuf(mbuf, sizeof(EthernetHeader), sizeof(REACPacketHeader), &rph)) {
-        IOLog("REACConnection::pushSamples() - Error: Failed to copy REAC header to packet mbuf.\n");
+        IOLog("REACConnection::sendSamples() - Error: Failed to copy REAC header to packet mbuf.\n");
         goto Done;
     }
     
     /// Copy sample data
     if (NULL != sampleBuffer) {
         if (kIOReturnSuccess != MbufUtils::copyAudioFromBufferToMbuf(mbuf, sampleOffset, bufSize, sampleBuffer)) {
-            IOLog("REACConnection::pushSamples() - Error: Failed to copy sample data to packet mbuf.\n");
+            IOLog("REACConnection::sendSamples() - Error: Failed to copy sample data to packet mbuf.\n");
             goto Done;
         }
     }
     else {
         if (kIOReturnSuccess != MbufUtils::zeroMbuf(mbuf, sampleOffset, samplesSize)) {
-            IOLog("REACConnection::pushSamples() - Error: Failed to zero sample data in mbuf.\n");
+            IOLog("REACConnection::sendSamples() - Error: Failed to zero sample data in mbuf.\n");
             goto Done;
         }
     }
@@ -367,14 +370,14 @@ IOReturn REACConnection::pushSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
     /// Copy packet ending
     if (kIOReturnSuccess != MbufUtils::copyFromBufferToMbuf(mbuf, endingOffset,
                                                             sizeof(REACConstants::ENDING), (void *)REACConstants::ENDING)) {
-        IOLog("REACConnection::pushSamples() - Error: Failed to copy ending to packet mbuf.\n");
+        IOLog("REACConnection::sendSamples() - Error: Failed to copy ending to packet mbuf.\n");
         goto Done;
     }
     
     /// Send packet
     if (0 != ifnet_output_raw(interface, 0, mbuf)) {
         mbuf = NULL; // ifnet_output_raw always frees the mbuf
-        IOLog("REACConnection::pushSamples() - Error: Failed to send packet.\n");
+        IOLog("REACConnection::sendSamples() - Error: Failed to send packet.\n");
         goto Done;
     }
     
@@ -388,7 +391,7 @@ Done:
     return result;
 }
 
-IOReturn REACConnection::pushSplitAnnouncementPacket() {
+IOReturn REACConnection::sendSplitAnnouncementPacket() {
     const UInt32 fillerSize = 288;
     const UInt32 fillerOffset = sizeof(EthernetHeader)+sizeof(REACPacketHeader);
     const UInt32 endingOffset = fillerOffset+fillerSize;
@@ -412,7 +415,7 @@ IOReturn REACConnection::pushSplitAnnouncementPacket() {
     /// Allocate mbuf
     if (0 != mbuf_allocpacket(MBUF_DONTWAIT, packetLen, NULL, &mbuf) ||
         kIOReturnSuccess != MbufUtils::setChainLength(mbuf, packetLen)) {
-        IOLog("REACConnection::pushSplitAnnouncementPacket() - Error: Failed to allocate packet mbuf.\n");
+        IOLog("REACConnection::sendSplitAnnouncementPacket() - Error: Failed to allocate packet mbuf.\n");
         goto Done;
     }
     
@@ -422,33 +425,33 @@ IOReturn REACConnection::pushSplitAnnouncementPacket() {
     memcpy(header.dhost, deviceInfo->addr, sizeof(header.dhost));
     memcpy(&header.type, REACConstants::PROTOCOL, sizeof(REACConstants::PROTOCOL));
     if (kIOReturnSuccess != MbufUtils::copyFromBufferToMbuf(mbuf, 0, sizeof(EthernetHeader), &header)) {
-        IOLog("REACConnection::pushSplitAnnouncementPacket() - Error: Failed to copy REAC header to packet mbuf.\n");
+        IOLog("REACConnection::sendSplitAnnouncementPacket() - Error: Failed to copy REAC header to packet mbuf.\n");
         goto Done;
     }
     
     /// Copy REAC header
     if (kIOReturnSuccess != MbufUtils::copyFromBufferToMbuf(mbuf, sizeof(EthernetHeader), sizeof(REACPacketHeader), &rph)) {
-        IOLog("REACConnection::pushSplitAnnouncementPacket() - Error: Failed to copy REAC header to packet mbuf.\n");
+        IOLog("REACConnection::sendSplitAnnouncementPacket() - Error: Failed to copy REAC header to packet mbuf.\n");
         goto Done;
     }
     
     /// Copy filler
     if (kIOReturnSuccess != MbufUtils::zeroMbuf(mbuf, fillerOffset, fillerSize)) {
-        IOLog("REACConnection::pushSplitAnnouncementPacket() - Error: Failed to zero filler data in mbuf.\n");
+        IOLog("REACConnection::sendSplitAnnouncementPacket() - Error: Failed to zero filler data in mbuf.\n");
         goto Done;
     }
     
     /// Copy packet ending
     if (kIOReturnSuccess != MbufUtils::copyFromBufferToMbuf(mbuf, endingOffset,
                                                             sizeof(REACConstants::ENDING), (void *)REACConstants::ENDING)) {
-        IOLog("REACConnection::pushSplitAnnouncementPacket() - Error: Failed to copy ending to packet mbuf.\n");
+        IOLog("REACConnection::sendSplitAnnouncementPacket() - Error: Failed to copy ending to packet mbuf.\n");
         goto Done;
     }
     
     /// Send packet
     if (0 != ifnet_output_raw(interface, 0, mbuf)) {
         mbuf = NULL; // ifnet_output_raw always frees the mbuf
-        IOLog("REACConnection::pushSplitAnnouncementPacket() - Error: Failed to send packet.\n");
+        IOLog("REACConnection::sendSplitAnnouncementPacket() - Error: Failed to send packet.\n");
         goto Done;
     }
     
@@ -544,11 +547,11 @@ void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, voi
                     }
                 }
             }
-            
-            if (REAC_SLAVE == proto->mode) {
-                proto->getAndPushSamples();
-            }
         }
+    }
+    
+    if (REAC_SLAVE == proto->mode) {
+        proto->getAndSendSamples();
     }
     
     proto->lastCounter = packetHeader.getCounter();

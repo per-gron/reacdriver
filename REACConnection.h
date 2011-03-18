@@ -136,10 +136,10 @@ protected:
     
     static void timerFired(OSObject *target, IOTimerEventSource *sender);
     
-    IOReturn getAndPushSamples();
+    IOReturn getAndSendSamples();
     // When sampleBuffer is NULL, the sample data will be zeros (and bufSize will be disregarded).
-    IOReturn pushSamples(UInt32 bufSize, UInt8 *sampleBuffer);
-    IOReturn pushSplitAnnouncementPacket();
+    IOReturn sendSamples(UInt32 bufSize, UInt8 *sampleBuffer);
+    IOReturn sendSplitAnnouncementPacket();
     
     static void filterCommandGateMsg(OSObject *target, void *data_mbuf, void *eth_header_ptr, void*, void*);
     
