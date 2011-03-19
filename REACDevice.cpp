@@ -64,9 +64,9 @@ void REACDevice::free() {
 }
 
 bool REACDevice::createProtocolListeners() {
-    OSArray*				interfaceArray = OSDynamicCast(OSArray, getProperty(INTERFACES_KEY));
-    OSCollectionIterator*	interfaceIterator;
-    OSDictionary*			interfaceDict;
+    OSArray                *interfaceArray = OSDynamicCast(OSArray, getProperty(INTERFACES_KEY));
+    OSCollectionIterator   *interfaceIterator;
+    OSDictionary           *interfaceDict;
 	
     if (!interfaceArray) {
         IOLog("REACDevice[%p]::createProtocolListeners() - Error: no Interface array in personality.\n", this);
@@ -97,7 +97,7 @@ bool REACDevice::createProtocolListeners() {
         
         protocol = REACConnection::withInterface(getWorkLoop(),
                                                  interface,
-                                                 REACConnection::REAC_SLAVE,
+                                                 REACConnection::REAC_MASTER,
                                                  &REACDevice::connectionCallback,
                                                  &REACDevice::samplesCallback,
                                                  &REACDevice::getSamplesCallback,
@@ -137,6 +137,11 @@ bool REACDevice::createProtocolListeners() {
 
 void REACDevice::connectionCallback(REACConnection *proto, void **cookieA, void** cookieB, REACDeviceInfo *deviceInfo) {
     REACDevice *device = (REACDevice*) *cookieA;
+    
+    if (NULL == *cookieB) {
+        *cookieB = (void*) device->createAudioEngine(proto);
+    }
+    return; // TODO Debug
     
     REACAudioEngine *engine = (REACAudioEngine*) *cookieB;
     

@@ -135,7 +135,7 @@ Done:
 bool REACAudioEngine::createAudioStreams(IOAudioSampleRate *sampleRate) {
     bool            result = false;
     
-    UInt32              numInChannels = protocol->getDeviceInfo()->in_channels;
+    UInt32              numInChannels  = protocol->getDeviceInfo()->in_channels;
     UInt32              numOutChannels = protocol->getDeviceInfo()->out_channels;
     UInt32              bufferSizePerChannel;
     OSDictionary       *inFormatDict;
@@ -333,7 +333,11 @@ void REACAudioEngine::gotSamples(UInt8 **data, UInt32 *bufferSize) {
 }
 
 void REACAudioEngine::getSamples(UInt8 **data, UInt32 *bufferSize) {
-    // TODO Implement me
+    const int bytesPerSample = outputStream->format.fBitWidth/8 * outputStream->format.fNumChannels;
+    const int bytesPerPacket = bytesPerSample * REAC_SAMPLES_PER_PACKET;
+
+    *data = (UInt8 *)mOutBuffer + currentBlock*blockSize*bytesPerSample;
+    *bufferSize = bytesPerPacket;
     
     if (REACConnection::REAC_MASTER == protocol->getMode()) {
         incrementBlockCounter();

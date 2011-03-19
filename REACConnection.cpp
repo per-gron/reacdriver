@@ -75,8 +75,8 @@ bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_
     deviceInfo->addr[3] = 0xc4;
     deviceInfo->addr[4] = 0x80;
     deviceInfo->addr[5] = 0xf6;
-    deviceInfo->in_channels = 16;
-    deviceInfo->out_channels = 8;
+    deviceInfo->in_channels = 8;
+    deviceInfo->out_channels = 16;
     started = false;
     connected = false;
     
@@ -84,7 +84,7 @@ bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_
     lastSeenConnectionCounter = 0;
     lastSentAnnouncementCounter = 0;
     splitAnnouncementCounter = 0;
-    connectionCallback = NULL; // connectionCallback_; TODO Debug
+    connectionCallback = connectionCallback_;
     samplesCallback = samplesCallback_;
     getSamplesCallback = getSamplesCallback_;
     cookieA = cookieA_;
@@ -120,6 +120,13 @@ bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_
     else {
         timeoutNS = REAC_CONNECTION_CHECK_TIMEOUT_MS;
         timeoutNS *= 1000000;
+    }
+    
+    // Hack: Announce connect
+    if (REAC_MASTER == mode) {
+        if (NULL != connectionCallback) {
+            connectionCallback(this, &cookieA, &cookieB, deviceInfo);
+        }
     }
     
     return true;
@@ -261,7 +268,7 @@ void REACConnection::timerFired(OSObject *target, IOTimerEventSource *sender) {
         if (proto->isConnected()) {
             if ((proto->connectionCounter - proto->lastSeenConnectionCounter)*proto->timeoutNS >
                 (UInt64)REAC_TIMEOUT_UNTIL_DISCONNECT*1000000) {
-                proto->connected = true;
+                proto->connected = false;
                 if (NULL != proto->connectionCallback) {
                     proto->connectionCallback(proto, &proto->cookieA, &proto->cookieB, NULL);
                 }
@@ -289,7 +296,7 @@ void REACConnection::timerFired(OSObject *target, IOTimerEventSource *sender) {
         diff = ((SInt64)proto->nextTime - (SInt64)thisTimeNS);
         
         if (diff < -((SInt64)proto->timeoutNS)*10) {
-            // TODO After a certain amount of lost packets we probably ought to skip
+            // TODO After a certain amount of lost packets we probably ought to skip output packets
             IOLog("REACConnection::timerFired(): Lost the time by %lld us\n", diff/1000);
         }
     } while (diff < 0);
@@ -326,7 +333,7 @@ IOReturn REACConnection::sendSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
         result = kIOReturnInvalid;
         goto Done;
     }
-    if (ourSamplesSize == bufSize && NULL != sampleBuffer) { // bufSize is ignored when sampleBuffer is NULL
+    if (ourSamplesSize != bufSize && NULL != sampleBuffer) { // bufSize is ignored when sampleBuffer is NULL
         result = kIOReturnBadArgument;
         goto Done;
     }
@@ -534,6 +541,7 @@ void REACConnection::filterCommandGateMsg(OSObject *target, void *data_mbuf, voi
     }
     
     // Check packet counter
+    // TODO This doesn't work when more than one unit (for instance two splits) is connected
     if (proto->isConnected() && /* This prunes a lost packet message when connecting */
         proto->lastCounter+1 != packetHeader.getCounter()) {
         if (!(65535 == proto->lastCounter && 0 == packetHeader.getCounter())) {
