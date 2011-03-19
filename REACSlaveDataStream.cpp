@@ -16,7 +16,6 @@
 OSDefineMetaClassAndStructors(REACSlaveDataStream, super)
 
 bool REACSlaveDataStream::initConnection(REACConnection *conn) {
-    
     resetHandshakeState();
     lastCdeaTwoBytes[0] = lastCdeaTwoBytes[1] = 0;
     
@@ -29,6 +28,8 @@ IOReturn REACSlaveDataStream::processPacket(REACPacketHeader *packet, UInt32 dho
         memcpy(packet->type, STREAM_TYPE_IDENTIFIERS[packetType], sizeof(packet->type));
 
     super::processPacket(packet, dhostLen, dhost);
+    
+    packet->setCounter(counter);
     
     if (sizeof(masterDevice.addr) != dhostLen) {
         return kIOReturnError;
@@ -119,7 +120,7 @@ bool REACSlaveDataStream::gotPacket(const REACPacketHeader *packet, const Ethern
         }
     }
     else if (HANDSHAKE_GOT_MAC_ADDRESS_INFO == handshakeState) {
-        if (recievedPacketCounter-lastGotMacAddressInfoStateUpdate > 2*REAC_PACKETS_PER_SECOND) {
+        if ((SInt64)recievedPacketCounter-(SInt64)lastGotMacAddressInfoStateUpdate > 2*REAC_PACKETS_PER_SECOND) {
             resetHandshakeState();
         }
         else if (isControlPacketType(packet, CONTROL_PACKET_TYPE_THREE)) {
@@ -147,6 +148,7 @@ bool REACSlaveDataStream::isControlPacketType(const REACPacketHeader *packet, RE
 }
 
 void REACSlaveDataStream::setHandshakeState(HandshakeState state) {
+    IOLog("REACSlaveDataStream::setHandshakeState(): Set handshake state: %d\n", state); // TODO Debug
     handshakeState = state;
     handshakeSubState = 0;
 }

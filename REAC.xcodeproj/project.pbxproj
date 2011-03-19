@@ -174,8 +174,8 @@
 				CB0C8731133366A100F8A7EA /* REACMasterDataStream.cpp */,
 				CB0C8736133366B100F8A7EA /* REACSlaveDataStream.h */,
 				CB0C8735133366B100F8A7EA /* REACSlaveDataStream.cpp */,
-				CB254E76132F9063002EDDCA /* MbufUtils.cpp */,
 				CB254E77132F9064002EDDCA /* MbufUtils.h */,
+				CB254E76132F9063002EDDCA /* MbufUtils.cpp */,
 				CB286A4C1333866200F0A3DE /* EthernetHeader.h */,
 			);
 			name = REAC;
