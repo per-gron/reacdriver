@@ -141,7 +141,7 @@ IOReturn REACMasterDataStream::processPacket(REACPacketHeader *packet, UInt32 dh
         
         if (REACMasterDataStream::isConnectedToSlave()) {
             // TODO This implementation is not complete
-            ap->inChannels *= 2;
+            ap->inChannels *= 2; // TODO Cap this at 40 channels?
             ap->outChannels *= 2;
         }
         

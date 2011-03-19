@@ -311,7 +311,7 @@ IOReturn REACConnection::sendSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
                                 (NULL != masterDataStream ?
                                     inChannels : deviceInfo->out_channels);
     // TODO This is not complete
-    const UInt32 slaveSamplesSize = masterDataStream->isConnectedToSlave() ? ourSamplesSize : 0;
+    const UInt32 slaveSamplesSize = (NULL != masterDataStream && masterDataStream->isConnectedToSlave()) ? ourSamplesSize : 0;
     const UInt32 sentSamplesSize = ourSamplesSize+slaveSamplesSize;
     const UInt32 sampleOffset = sizeof(EthernetHeader)+sizeof(REACPacketHeader);
     const UInt32 endingOffset = sampleOffset+sentSamplesSize;
