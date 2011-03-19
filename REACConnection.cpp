@@ -16,6 +16,7 @@
 
 #include "MbufUtils.h"
 #include "REACSplitDataStream.h"
+#include "REACMasterDataStream.h"
 
 #define REAC_CONNECTION_CHECK_TIMEOUT_MS 500
 #define REAC_TIMEOUT_UNTIL_DISCONNECT 1000
@@ -305,10 +306,15 @@ IOReturn REACConnection::getAndSendSamples() {
 }
 
 IOReturn REACConnection::sendSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
-    const UInt32 samplesSize = REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*
-                                (REAC_MASTER == mode ? inChannels : deviceInfo->out_channels);
+    REACMasterDataStream *masterDataStream = OSDynamicCast(REACMasterDataStream, dataStream);
+    const UInt32 ourSamplesSize = REAC_SAMPLES_PER_PACKET*REAC_RESOLUTION*
+                                (NULL != masterDataStream ?
+                                    inChannels : deviceInfo->out_channels);
+    // TODO This is not complete
+    const UInt32 slaveSamplesSize = masterDataStream->isConnectedToSlave() ? ourSamplesSize : 0;
+    const UInt32 sentSamplesSize = ourSamplesSize+slaveSamplesSize;
     const UInt32 sampleOffset = sizeof(EthernetHeader)+sizeof(REACPacketHeader);
-    const UInt32 endingOffset = sampleOffset+samplesSize;
+    const UInt32 endingOffset = sampleOffset+sentSamplesSize;
     const UInt32 packetLen = endingOffset+sizeof(REACConstants::ENDING);
     REACPacketHeader rph;
     mbuf_t mbuf = NULL;
@@ -320,7 +326,7 @@ IOReturn REACConnection::sendSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
         result = kIOReturnInvalid;
         goto Done;
     }
-    if (samplesSize == bufSize && NULL != sampleBuffer) { // bufSize is ignored when sampleBuffer is NULL
+    if (ourSamplesSize == bufSize && NULL != sampleBuffer) { // bufSize is ignored when sampleBuffer is NULL
         result = kIOReturnBadArgument;
         goto Done;
     }
@@ -369,8 +375,16 @@ IOReturn REACConnection::sendSamples(UInt32 bufSize, UInt8 *sampleBuffer) {
         }
     }
     else {
-        if (kIOReturnSuccess != MbufUtils::zeroMbuf(mbuf, sampleOffset, samplesSize)) {
+        if (kIOReturnSuccess != MbufUtils::zeroMbuf(mbuf, sampleOffset, ourSamplesSize)) {
             IOLog("REACConnection::sendSamples() - Error: Failed to zero sample data in mbuf.\n");
+            goto Done;
+        }
+    }
+    if (NULL != masterDataStream && masterDataStream->isConnectedToSlave()) {
+        // TODO This is very incorrect: It doesn't send the slave data, and even if it would, the order of the
+        // data would be jumbled, because it has to send the whole first sample first and so on.
+        if (kIOReturnSuccess != MbufUtils::zeroMbuf(mbuf, sampleOffset+ourSamplesSize, slaveSamplesSize)) {
+            IOLog("REACConnection::sendSamples() - Error: Failed to zero slave sample data in mbuf.\n");
             goto Done;
         }
     }

@@ -55,6 +55,7 @@ bool REACMasterDataStream::initConnection(REACConnection *conn) {
     }
     masterGotSplitAnnounceState = GOT_SPLIT_NOT_INITIATED;
     
+    slaveConnectionStatus = SLAVE_CONNECTION_NO_CONNECTION;
     gotSlaveAnnounce = false;
     
     return super::initConnection(conn);
@@ -119,6 +120,11 @@ IOReturn REACMasterDataStream::processPacket(REACPacketHeader *packet, UInt32 dh
         setPacketTypeMacro(REAC_STREAM_CONTROL);
         memcpy(packet->data, slaveAnnounceData, sizeof(packet->data));
         applyChecksumAndSaveLastChecksumMacro();
+        
+        if (isControlPacketType(packet, CONTROL_PACKET_TYPE_SLAVE_ANNOUNCE3)) {
+            // TODO This implementation is not complete
+            slaveConnectionStatus = SLAVE_CONNECTION_GOT_SLAVE_ANNOUNCE;
+        }
     }
     else if (counter-lastAnnouncePacket >= REAC_PACKETS_PER_SECOND) {
         static const UInt8 masterAnnounce[] = {
@@ -132,6 +138,12 @@ IOReturn REACMasterDataStream::processPacket(REACPacketHeader *packet, UInt32 dh
         connection->getInterfaceAddr(sizeof(ap->address), ap->address);
         ap->inChannels = connection->getInChannels();
         ap->outChannels = connection->getOutChannels();
+        
+        if (REACMasterDataStream::isConnectedToSlave()) {
+            // TODO This implementation is not complete
+            ap->inChannels *= 2;
+            ap->outChannels *= 2;
+        }
         
         ap->unknown2[0] = 0x01;
         // This byte has something to do with splits
@@ -411,6 +423,11 @@ bool REACMasterDataStream::gotPacket(const REACPacketHeader *packet, const Ether
     }
     
     return false;
+}
+
+// TODO This function's implementation is not complete
+bool REACMasterDataStream::isConnectedToSlave() const {
+    return SLAVE_CONNECTION_GOT_SLAVE_ANNOUNCE == slaveConnectionStatus;
 }
 
 bool REACMasterDataStream::updateLastHeardFromSplitUnit(const EthernetHeader* header, UInt32 addrLen, const UInt8 *addr) {

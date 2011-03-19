@@ -51,6 +51,8 @@ public:
     virtual IOReturn processPacket(REACPacketHeader *packet, UInt32 dhostLen, UInt8 *dhost);
     virtual bool gotPacket(const REACPacketHeader *packet, const EthernetHeader *header);
     
+    bool isConnectedToSlave() const;
+    
 protected:
     enum GotSplitAnnounceState {
         GOT_SPLIT_NOT_INITIATED,
@@ -74,8 +76,13 @@ protected:
     SInt32    cdeaCurrentOffset; // Used when writing the cdea filler packets
     
     // Slave handshake state
-    bool      gotSlaveAnnounce;
-    UInt8     slaveAnnounceData[32];
+    enum SlaveConnectionStatus {
+        SLAVE_CONNECTION_NO_CONNECTION,
+        SLAVE_CONNECTION_GOT_SLAVE_ANNOUNCE
+    };
+    SlaveConnectionStatus   slaveConnectionStatus;
+    bool                    gotSlaveAnnounce;
+    UInt8                   slaveAnnounceData[32];
 };
 
 #endif
