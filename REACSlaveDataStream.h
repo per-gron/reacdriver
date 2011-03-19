@@ -42,7 +42,6 @@ protected:
     REACDeviceInfo      masterDevice;
     UInt8               lastCdeaTwoBytes[2];
     
-    inline bool isControlPacketType(const REACPacketHeader *packet, REACStreamControlPacketType type);
     void setHandshakeState(HandshakeState state);
     void resetHandshakeState();
 };

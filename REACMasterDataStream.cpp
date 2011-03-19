@@ -55,6 +55,8 @@ bool REACMasterDataStream::initConnection(REACConnection *conn) {
     }
     masterGotSplitAnnounceState = GOT_SPLIT_NOT_INITIATED;
     
+    gotSlaveAnnounce = false;
+    
     return super::initConnection(conn);
     
 Fail:
@@ -79,13 +81,19 @@ IOReturn REACMasterDataStream::processPacket(REACPacketHeader *packet, UInt32 dh
 #   define setPacketTypeMacro(packetType) \
         memcpy(packet->type, STREAM_TYPE_IDENTIFIERS[packetType], sizeof(packet->type));
     
+#   define applyChecksumAndSaveLastChecksumMacro() \
+        { \
+            lastCdeaTwoBytes[0] = packet->data[sizeof(packet->data)-2]; \
+            lastCdeaTwoBytes[1] = REACDataStream::applyChecksum(packet); \
+        }
+    
     super::processPacket(packet, dhostLen, dhost);
     
     packet->setCounter(counter);
     
     memset(dhost, 0xff, dhostLen);
     
-    if (REACConnection::REAC_MASTER == connection->getMode() && GOT_SPLIT_ANNOUNCE == masterGotSplitAnnounceState) {
+    if (GOT_SPLIT_ANNOUNCE == masterGotSplitAnnounceState) {
         static const UInt8 splitAnnounceResponse[] = {
             0xff, 0xff, 0x01, 0x00, 0x01, 0x03, 0x0a, 0x02, 0x02
         };
@@ -105,6 +113,12 @@ IOReturn REACMasterDataStream::processPacket(REACPacketHeader *packet, UInt32 dh
         REACDataStream::applyChecksum(packet);
         
         splitUnitConnected(sarp->identifierAssignment, sizeof(masterSplitAnnounceAddr), masterSplitAnnounceAddr);
+    }
+    else if (gotSlaveAnnounce) {
+        gotSlaveAnnounce = false;
+        setPacketTypeMacro(REAC_STREAM_CONTROL);
+        memcpy(packet->data, slaveAnnounceData, sizeof(packet->data));
+        applyChecksumAndSaveLastChecksumMacro();
     }
     else if (counter-lastAnnouncePacket >= REAC_PACKETS_PER_SECOND) {
         static const UInt8 masterAnnounce[] = {
@@ -361,8 +375,7 @@ IOReturn REACMasterDataStream::processPacket(REACPacketHeader *packet, UInt32 dh
         setPacketTypeMacro(REAC_STREAM_CONTROL);
         memcpy(packet->data, REAC_STREAM_CONTROL_PACKET_TYPE[cdeaPacketType], sizeof(REAC_STREAM_CONTROL_PACKET_TYPE[cdeaPacketType]));
         
-        lastCdeaTwoBytes[0] = packet->data[sizeof(packet->data)-2];
-        lastCdeaTwoBytes[1] = REACDataStream::applyChecksum(packet);
+        applyChecksumAndSaveLastChecksumMacro();
     }
     else {
         setPacketTypeMacro(REAC_STREAM_FILLER);
@@ -389,6 +402,12 @@ bool REACMasterDataStream::gotPacket(const REACPacketHeader *packet, const Ether
             memcpy(masterSplitAnnounceAddr, packet->data+9 /* sorry about the magic constant */, sizeof(masterSplitAnnounceAddr));
         }
         return true;
+    }
+    else if (isControlPacketType(packet, CONTROL_PACKET_TYPE_SLAVE_ANNOUNCE2) ||
+             isControlPacketType(packet, CONTROL_PACKET_TYPE_SLAVE_ANNOUNCE3) &&
+             !gotSlaveAnnounce) {
+        gotSlaveAnnounce = true;
+        memcpy(slaveAnnounceData, packet->data, sizeof(slaveAnnounceData));
     }
     
     return false;

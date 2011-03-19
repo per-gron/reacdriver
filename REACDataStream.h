@@ -125,6 +125,7 @@ protected:
     static UInt8 applyChecksum(REACPacketHeader *packet);
     
     static bool isPacketType(const REACPacketHeader *packet, REACStreamType st);
+    static bool isControlPacketType(const REACPacketHeader *packet, REACStreamControlPacketType type);
 };
 
 

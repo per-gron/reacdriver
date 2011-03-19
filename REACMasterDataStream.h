@@ -72,6 +72,10 @@ protected:
     SInt32    cdeaPacketsSinceStateChange;
     SInt32    cdeaAtChannel;     // Used when writing the cdea channel info packets
     SInt32    cdeaCurrentOffset; // Used when writing the cdea filler packets
+    
+    // Slave handshake state
+    bool      gotSlaveAnnounce;
+    UInt8     slaveAnnounceData[32];
 };
 
 #endif

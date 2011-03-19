@@ -125,3 +125,10 @@ UInt8 REACDataStream::applyChecksum(REACPacketHeader *packet) {
 bool REACDataStream::isPacketType(const REACPacketHeader *packet, REACStreamType st) {
     return 0 == memcmp(packet->type, STREAM_TYPE_IDENTIFIERS[st], sizeof(STREAM_TYPE_IDENTIFIERS[st]));
 }
+
+bool REACDataStream::isControlPacketType(const REACPacketHeader *packet, REACStreamControlPacketType type) {
+    return isPacketType(packet, REAC_STREAM_CONTROL) &&
+    0 == memcmp(packet->data,
+                REAC_STREAM_CONTROL_PACKET_TYPE[type],
+                REAC_STREAM_CONTROL_PACKET_TYPE_SIZE);
+}

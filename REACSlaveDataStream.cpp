@@ -126,25 +126,23 @@ bool REACSlaveDataStream::gotPacket(const REACPacketHeader *packet, const Ethern
         else if (isControlPacketType(packet, CONTROL_PACKET_TYPE_THREE)) {
             lastGotMacAddressInfoStateUpdate = recievedPacketCounter;
             
-            for (UInt32 i=5; i<8*3; i+=3) {
-                if (-1 == firstChannelInfoId) {
-                    firstChannelInfoId = packet->data[i];
-                }
-                else if (firstChannelInfoId == packet->data[i]) {
-                    setHandshakeState(HANDSHAKE_SENDING_INITIAL_ANNOUNCE);
+            if (true) {
+                setHandshakeState(HANDSHAKE_SENDING_INITIAL_ANNOUNCE);
+            }
+            else {
+                for (UInt32 i=5; i<8*3; i+=3) {
+                    if (-1 == firstChannelInfoId) {
+                        firstChannelInfoId = packet->data[i];
+                    }
+                    else if (firstChannelInfoId == packet->data[i]) {
+                        setHandshakeState(HANDSHAKE_SENDING_INITIAL_ANNOUNCE);
+                    }
                 }
             }
         }
     }
     
     return false;
-}
-
-bool REACSlaveDataStream::isControlPacketType(const REACPacketHeader *packet, REACStreamControlPacketType type) {
-    return isPacketType(packet, REAC_STREAM_CONTROL) &&
-            0 == memcmp(packet->data,
-                        REAC_STREAM_CONTROL_PACKET_TYPE[type],
-                        REAC_STREAM_CONTROL_PACKET_TYPE_SIZE);
 }
 
 void REACSlaveDataStream::setHandshakeState(HandshakeState state) {
