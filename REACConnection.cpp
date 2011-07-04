@@ -75,8 +75,8 @@ bool REACConnection::initWithInterface(IOWorkLoop *workLoop_, ifnet_t interface_
     deviceInfo->addr[3] = 0xc4;
     deviceInfo->addr[4] = 0x80;
     deviceInfo->addr[5] = 0xf6;
-    deviceInfo->in_channels = 8;
-    deviceInfo->out_channels = 16;
+    deviceInfo->in_channels = 16;
+    deviceInfo->out_channels = 8;
     started = false;
     connected = false;
     

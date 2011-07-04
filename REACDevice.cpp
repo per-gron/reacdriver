@@ -97,7 +97,7 @@ bool REACDevice::createProtocolListeners() {
         
         protocol = REACConnection::withInterface(getWorkLoop(),
                                                  interface,
-                                                 REACConnection::REAC_MASTER,
+                                                 REACConnection::REAC_SPLIT,
                                                  &REACDevice::connectionCallback,
                                                  &REACDevice::samplesCallback,
                                                  &REACDevice::getSamplesCallback,
@@ -137,7 +137,7 @@ bool REACDevice::createProtocolListeners() {
 
 void REACDevice::connectionCallback(REACConnection *proto, void **cookieA, void** cookieB, REACDeviceInfo *deviceInfo) {
     REACDevice *device = (REACDevice*) *cookieA;
-    
+
     if (NULL == *cookieB) {
         *cookieB = (void*) device->createAudioEngine(proto);
     }
@@ -180,8 +180,7 @@ void REACDevice::getSamplesCallback(REACConnection *proto, void **cookieA, void*
     }
 }
 
-REACAudioEngine* REACDevice::createAudioEngine(REACConnection *proto)
-{
+REACAudioEngine* REACDevice::createAudioEngine(REACConnection *proto) {
     OSDictionary *originalAudioEngineParams = OSDynamicCast(OSDictionary, getProperty(AUDIO_ENGINE_PARAMS_KEY));
     OSDictionary *audioEngineParams = NULL;
     
