@@ -16,6 +16,13 @@ slave and master mode, but there is still at least one step left in the slave ha
 Additionally, this code is as dumb as possible with the metadata part of the REAC packets. It
 basically does nothing with it except when it's necessary to finish the connection handshake.
 
+With more work, it should be possible to implement complete support for split mode. I do not
+think it is possible to create a satisfactory implementation of slave and master mode without
+changing the firmware of the REAC devices, because the operating system does not schedule control
+to the kernel extension thread sufficiently often to enable jitter free playback. To implement
+it, I'd probably add a special mode in the hardware devices where their internal buffer is
+lengthened to approximately 4ms.
+
 When the extension is loaded (and not in master mode), it will listen to all ethernet network
 interfaces for REAC packets.
 
