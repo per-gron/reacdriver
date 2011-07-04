@@ -16,6 +16,9 @@ slave and master mode, but there is still at least one step left in the slave ha
 Additionally, this code is as dumb as possible with the metadata part of the REAC packets. It
 basically does nothing with it except when it's necessary to finish the connection handshake.
 
+When the extension is loaded (and not in master mode), it will listen to all ethernet network
+interfaces for REAC packets.
+
 # Usage
 
 XCode is used to build the driver. The product, a directory called `REAC.kext`, will be located
@@ -25,6 +28,9 @@ scripts `test/load.sh` and `test/unload.sh` are useful (they are simple wrapper 
 
 To install the driver permanently, copy `REAC.kext` to `/System/Library/Extensions`
 
+When the kernel extension is loaded, simply connect the network cable to the computer, and it
+should show up on the system preferences pane just like any other sound card.
+
 # Use at your own risk!
 
 This is not very thouroughly tested kernel code. Installing this code on your computer might
@@ -32,10 +38,10 @@ make it crash, it might erase all the contents on your file system. Kernel code 
 to permanently damage the hardware of your computer.
 
 I believe and hope that this code won't do any of these things, but there are no guarantees.
-Please see the file COPYING for further details.
+Please see the file `COPYING` for further details.
 
 # License
 
 This code (except Apple's PCMBlitterLib, which is optimized code to convert between floating
 and fixed point PCM data) is released under the General Public License version 3. See the file
-COPYING for the full license
+`COPYING` for the full license.
